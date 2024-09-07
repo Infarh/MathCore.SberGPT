@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
@@ -66,19 +67,32 @@ public static class SbeGptRegistrator
                     { "Authorization", $"Bearer {config["secret"] ?? throw new InvalidOperationException("Не задан секрет авторизации sber:secret")}" },
                     { "RqUID", _RqUID },
                 },
-                Content = new FormUrlEncodedContent([new("scope", __Scope)]),
+                // ReSharper disable once SettingNotFoundInConfiguration
+                Content = new FormUrlEncodedContent([new("scope", config["scope"] ?? __Scope)]),
             };
 
             var response = await base.SendAsync(request, Cancel).ConfigureAwait(false);
 
-            AccessToken token = await response.EnsureSuccessStatusCode()
-                .Content
-                .ReadFromJsonAsync<GetAccessTokenResponse>(cancellationToken: Cancel)
-                .ConfigureAwait(false);
+            try
+            {
+                AccessToken token = await response.EnsureSuccessStatusCode()
+                    .Content
+                    .ReadFromJsonAsync<GetAccessTokenResponse>(cancellationToken: Cancel)
+                    .ConfigureAwait(false);
 
-            log.LogInformation("Успешная авторизация. Токен действует до {ExpiredTime:dd.MM.yyyy HH:mm:ss.fff}", token.ExpiredTime);
+                log.LogInformation("Успешная авторизация. Токен действует до {ExpiredTime:dd.MM.yyyy HH:mm:ss.fff}",
+                    token.ExpiredTime);
 
-            return token;
+                return token;
+            }
+            catch(HttpRequestException error) when(error.StatusCode == HttpStatusCode.BadRequest)
+            {
+                throw new InvalidOperationException("Ошибка формата запроса авторизации", error);
+            }
+            catch(HttpRequestException error) when(error.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new InvalidOperationException("Ошибка данных авторизации", error);
+            }
         }
 
         private readonly record struct GetAccessTokenResponse(

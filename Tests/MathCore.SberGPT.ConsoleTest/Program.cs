@@ -1,11 +1,13 @@
-﻿
-using System.ComponentModel.DataAnnotations;
-using MathCore.SberGPT;
+﻿using MathCore.SberGPT;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+
+Console.WriteLine("Start.");
+Console.WriteLine("");
 
 var builder = Host.CreateDefaultBuilder(args)
         .ConfigureAppConfiguration(c => c.AddUserSecrets(typeof(Program).Assembly))
@@ -47,7 +49,12 @@ class TestWorker(GptClient gpt, ILogger<TestWorker> log) : IHostedService, IDisp
         //foreach(var (input, tokens_count, count) in tokens)
         //    log.LogInformation("{input} токенов: {tokens}, chars: {count}", input, tokens_count, count);
 
-
+        var response = await gpt.RequestAsync(
+            [
+                new("Ты профессиональный синоптик. Дай точный прогноз погоды используя простой язык.", RequestRole.system),
+                new("Какая погода в Москве сегодня?")
+            ], Cancel: Cancel)
+            .ConfigureAwait(false);
     }
 
     Task IHostedService.StartAsync(CancellationToken cancel)
