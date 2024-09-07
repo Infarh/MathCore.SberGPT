@@ -2,13 +2,14 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Text.Unicode;
 using static MathCore.SberGPT.GptClient.ModelResponse;
 using static MathCore.SberGPT.GptClient.TokensCount;
 
 namespace MathCore.SberGPT;
 
-public class GptClient(HttpClient http)
+public partial class GptClient(HttpClient http)
 {
     private readonly record struct ModelsInfosList([property: JsonPropertyName("data")] ModelInfo[] Models);
 
@@ -97,6 +98,7 @@ public class GptClient(HttpClient http)
     internal readonly record struct RequestMessage(
         [property: JsonPropertyName("messages")] Request[] Requests,
         [property: JsonPropertyName("model")] string Model = "GigaChat",
+        [property: JsonPropertyName("function_call")] string? FunctionCall = null,
         [property: JsonPropertyName("temperature")] double? Temperature = null,
         [property: JsonPropertyName("top_p")] double? TemperatureAlternative = null,
         [property: JsonPropertyName("stream")] bool? Streaming = null,
@@ -181,7 +183,17 @@ public class GptClient(HttpClient http)
                 [property: JsonPropertyName("data_for_context")] IReadOnlyList<MessageValue.DataForContextValue> DataForContext
             )
             {
-                public readonly record struct DataForContextValue;
+                public readonly record struct DataForContextValue(
+                    [property: JsonPropertyName("content")] string Content,
+                    [property: JsonPropertyName("role")] string Role,
+                    [property: JsonPropertyName("function_call")] DataForContextValue.FunctionCallValue? FunctionCall
+                )
+                {
+                    public readonly record struct FunctionCallValue(
+                        [property: JsonPropertyName("name")] string Name,
+                        [property: JsonPropertyName("arguments")] IReadOnlyDictionary<string, string> Arguments
+                        );
+                }
             }
         }
 
@@ -225,5 +237,96 @@ public class GptClient(HttpClient http)
         return response_message.Choices
             .Where(c => c.Message.Role is "assistant")
             .Select(c => c.Message.Content);
+    }
+
+    private static readonly Regex __GuidRegex = GetGuidRegex();
+
+    [GeneratedRegex("[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")]
+    private static partial Regex GetGuidRegex();
+
+    public async Task<Guid> GenerateImageAsync(
+        IEnumerable<Request> Requests,
+        string Model = "GigaChat",
+        CancellationToken Cancel = default)
+    {
+        const string request_url = "api/v1/chat/completions";
+
+        RequestMessage message = new(Requests.ToArray(), Model, FunctionCall: "auto");
+
+        var response = await http.PostAsJsonAsync(request_url, message, __DefaultOptions, Cancel).ConfigureAwait(false);
+
+        var response_message = await response
+            .EnsureSuccessStatusCode()
+            .Content
+            .ReadFromJsonAsync<ModelResponse>(cancellationToken: Cancel)
+            .ConfigureAwait(false);
+
+        var content_str = response_message.Choices.First(c => c.Message.Role == "assistant").Message.Content;
+        var guid = Guid.Parse(__GuidRegex.Match(content_str).ValueSpan);
+        
+        return guid;
+    }
+
+    private async ValueTask<Stream> GetImageDownloadStreamAsync(Guid id, CancellationToken Cancel)
+    {
+        var response = await http.GetAsync($"api/v1/files/{id}/content", Cancel).ConfigureAwait(false);
+
+        var stream = await response.EnsureSuccessStatusCode()
+            .Content
+            .ReadAsStreamAsync(Cancel)
+            .ConfigureAwait(false);
+        return stream;
+    }
+
+    public async Task<byte[]> DownloadImageById(Guid id, CancellationToken Cancel = default)
+    {
+        await using var stream = await GetImageDownloadStreamAsync(id, Cancel);
+
+        var result = new MemoryStream(new byte[stream.Length]);
+        await stream.CopyToAsync(result, Cancel).ConfigureAwait(false);
+
+        return result.ToArray();
+    }
+
+    public async Task DownloadImageById(Guid id, Func<Stream, Task> ProcessStream, CancellationToken Cancel = default)
+    {
+        await using var stream = await GetImageDownloadStreamAsync(id, Cancel);
+        await ProcessStream(stream).ConfigureAwait(false);
+    }
+
+    public async Task DownloadImageById(Guid id, Func<Stream, CancellationToken, Task> ProcessStream, CancellationToken Cancel = default)
+    {
+        await using var stream = await GetImageDownloadStreamAsync(id, Cancel);
+        await ProcessStream(stream, Cancel).ConfigureAwait(false);
+    }
+
+    public async Task<byte[]> GenerateAndDownloadImageAsync(
+        IEnumerable<Request> Requests,
+        string Model = "GigaChat",
+        CancellationToken Cancel = default)
+    {
+        var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
+        var result = await DownloadImageById(guid, Cancel).ConfigureAwait(false);
+        return result;
+    }
+
+    public async Task GenerateAndDownloadImageAsync(
+        IEnumerable<Request> Requests,
+        Func<Stream, Task> ProcessStream,
+        string Model = "GigaChat",
+        CancellationToken Cancel = default)
+    {
+        var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
+        await DownloadImageById(guid, ProcessStream, Cancel).ConfigureAwait(false);
+    }
+
+    public async Task GenerateAndDownloadImageAsync(
+        IEnumerable<Request> Requests,
+        Func<Stream, CancellationToken, Task> ProcessStream,
+        string Model = "GigaChat",
+        CancellationToken Cancel = default)
+    {
+        var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
+        await DownloadImageById(guid, ProcessStream, Cancel).ConfigureAwait(false);
     }
 }

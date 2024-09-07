@@ -34,7 +34,7 @@ class TestWorker(GptClient gpt, ILogger<TestWorker> log) : IHostedService, IDisp
 
     private async Task WorkTask(CancellationToken Cancel)
     {
-        var models = await gpt.GetModelsAsync(Cancel).ConfigureAwait(false);
+        //var models = await gpt.GetModelsAsync(Cancel).ConfigureAwait(false);
 
         //var tokens = await gpt.GetTokensCountAsync([
         //    "Я к вам пишу — чего же боле?", 
@@ -49,11 +49,36 @@ class TestWorker(GptClient gpt, ILogger<TestWorker> log) : IHostedService, IDisp
         //foreach(var (input, tokens_count, count) in tokens)
         //    log.LogInformation("{input} токенов: {tokens}, chars: {count}", input, tokens_count, count);
 
-        var response = await gpt.RequestAsync(
-            [
-                new("Ты профессиональный синоптик. Дай точный прогноз погоды используя простой язык.", RequestRole.system),
-                new("Какая погода в Москве сегодня?")
-            ], Cancel: Cancel)
+        //var response = await gpt.RequestAsync(
+        //    [
+        //        new("Ты профессиональный синоптик. Дай точный прогноз погоды используя простой язык.", RequestRole.system),
+        //        new("Какая погода в Москве сегодня?")
+        //    ], Cancel: Cancel)
+        //    .ConfigureAwait(false);
+
+        //var image_guid = await gpt.GenerateImageAsync(
+        //    [
+        //        new("Ты художник со стажем. Нарисуй изображение в стиле акварели.", RequestRole.system),
+        //        new("Нарисуй прохожих на тёмной улице в свете фонарей. На тротуаре лужи.")
+        //    ], 
+        //    Cancel: Cancel)
+        //    .ConfigureAwait(false);
+
+        //var image_bytes = await gpt.DownloadImageById(image_guid, Cancel).ConfigureAwait(false);
+
+        //await File.WriteAllBytesAsync("img4.jpg", image_bytes, Cancel).ConfigureAwait(false);
+
+        await gpt.GenerateAndDownloadImageAsync(
+                [
+                    new("Ты художник со стажем. Нарисуй изображение в стиле акварели.", RequestRole.system),
+                    new("Нарисуй прохожих на тёмной улице в свете фонарей. На тротуаре лужи.")
+                ],
+                async (f, c) =>
+                {
+                    await using var file = File.Create("img9.jpg");
+                    await f.CopyToAsync(file, c).ConfigureAwait(false);
+                },
+                Cancel: Cancel)
             .ConfigureAwait(false);
     }
 
