@@ -5,6 +5,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+const string __BaseUrl = "https://gigachat.devices.sberbank.ru/api/v1/";
+
+
+//var http = new HttpClient(new CustomHandler())
+//{
+//    BaseAddress = new(__BaseUrl, UriKind.Absolute)
+//};
+
+//var get = await http.GetAsync("auth");
+
+//var gpt = new GptClient(http);
 
 Console.WriteLine("Start.");
 Console.WriteLine("");
@@ -27,6 +38,8 @@ await app.RunAsync();
 
 Console.WriteLine("End.");
 
+return;
+
 class TestWorker(GptClient gpt, ILogger<TestWorker> log) : IHostedService, IDisposable
 {
     private readonly CancellationTokenSource _Cancellation = new();
@@ -34,17 +47,17 @@ class TestWorker(GptClient gpt, ILogger<TestWorker> log) : IHostedService, IDisp
 
     private async Task WorkTask(CancellationToken Cancel)
     {
-        //var models = await gpt.GetModelsAsync(Cancel).ConfigureAwait(false);
+        var models = await gpt.GetModelsAsync(Cancel).ConfigureAwait(false);
 
-        //var tokens = await gpt.GetTokensCountAsync([
-        //    "Я к вам пишу — чего же боле?", 
-        //    "Что я могу еще сказать?",
-        //    "Теперь, я знаю, в вашей воле",
-        //    "Меня презреньем наказать.",
-        //    "Но вы, к моей несчастной доле",
-        //    "Хоть каплю жалости храня,",
-        //    "Вы не оставите меня."], 
-        //    Cancel: Cancel).ConfigureAwait(false);
+        var tokens = await gpt.GetTokensCountAsync([
+            "Я к вам пишу — чего же боле?",
+            "Что я могу еще сказать?",
+            "Теперь, я знаю, в вашей воле",
+            "Меня презреньем наказать.",
+            "Но вы, к моей несчастной доле",
+            "Хоть каплю жалости храня,",
+            "Вы не оставите меня."],
+            Cancel: Cancel).ConfigureAwait(false);
 
         //foreach(var (input, tokens_count, count) in tokens)
         //    log.LogInformation("{input} токенов: {tokens}, chars: {count}", input, tokens_count, count);
@@ -70,14 +83,10 @@ class TestWorker(GptClient gpt, ILogger<TestWorker> log) : IHostedService, IDisp
 
         await gpt.GenerateAndDownloadImageAsync(
                 [
-                    new("Ты художник со стажем. Нарисуй изображение в стиле акварели.", RequestRole.system),
-                    new("Нарисуй прохожих на тёмной улице в свете фонарей. На тротуаре лужи.")
+                    new("Ты художник со стажем. Используй фотореалистичный стиль.", RequestRole.system),
+                    new("Нарисуй порт в городе Выборг")
                 ],
-                async (f, c) =>
-                {
-                    await using var file = File.Create("img9.jpg");
-                    await f.CopyToAsync(file, c).ConfigureAwait(false);
-                },
+                (bytes, cancel) => File.WriteAllBytesAsync("Viborg.jpg", bytes, cancel),
                 Cancel: Cancel)
             .ConfigureAwait(false);
     }
