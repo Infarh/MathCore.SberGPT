@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Text.Unicode;
-
+using Microsoft.Extensions.Logging;
 using static MathCore.SberGPT.GptClient.ModelResponse;
 using static MathCore.SberGPT.GptClient.TokensCount;
 
@@ -14,7 +14,7 @@ namespace MathCore.SberGPT;
 
 /// <summary>Клиент для запросов к Giga chat</summary>
 /// <param name="http">Http-клиент для отправки запросов</param>
-public partial class GptClient(HttpClient http)
+public partial class GptClient(HttpClient http, ILogger<GptClient> log)
 {
     #region Информация о типах моделей
 
@@ -294,6 +294,10 @@ public partial class GptClient(HttpClient http)
             .Content
             .ReadFromJsonAsync<ModelResponse>(cancellationToken: Cancel)
             .ConfigureAwait(false);
+
+        log.LogInformation("Успешно получен ответ от модели {ModelType}. Токенов в запросе: {PromptTokens}. Потрачено токенов: {CompletionTokens}. Итого токенов: {TotalTokens}",
+            response_message.Model,
+            response_message.Usage.PromptTokens, response_message.Usage.CompletionTokens, response_message.Usage.TotalTokens);
 
         return response_message.Choices
             .Where(c => c.Message.Role is "assistant")

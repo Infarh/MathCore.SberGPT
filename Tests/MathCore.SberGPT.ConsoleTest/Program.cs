@@ -1,4 +1,5 @@
-﻿using MathCore.SberGPT;
+﻿using MathCore.OpenXML.WordProcessing;
+using MathCore.SberGPT;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,11 +31,24 @@ var builder = Host.CreateDefaultBuilder(args)
 
 using var app = builder.Build();
 
-var app_config = app.Services.GetRequiredService<IConfiguration>();
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var client = scope.ServiceProvider.GetRequiredService<GptClient>();
 
-var t = app_config["test"];
+    var file = new FileInfo("diplom.docx");
 
-await app.RunAsync();
+    var text = Word.File(file)
+        .SkipWhile(l => !string.Equals(l, "введение", StringComparison.OrdinalIgnoreCase))
+        .Select(l => l.Trim())
+        .WhereNot(string.IsNullOrWhiteSpace)
+        .ToArray();
+
+    var response = await client.GetTokensCountAsync(text);
+
+    Console.WriteLine();
+}
+
+//await app.RunAsync();
 
 Console.WriteLine("End.");
 
