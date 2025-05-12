@@ -1,10 +1,12 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+// ReSharper disable SettingNotFoundInConfiguration
 
 namespace MathCore.SberGPT;
 
@@ -18,13 +20,18 @@ public class SberGPTRequestHandler : DelegatingHandler
 
     private readonly IConfiguration _Config;
     private readonly ILogger _Log;
+    private readonly string _ClientId;
+    private readonly ProductInfoHeaderValue _UserAgent;
 
     public SberGPTRequestHandler(IConfiguration Config, ILogger Log)
     {
         _Config = Config;
         _Log = Log;
 
-        InnerHandler = new HttpClientHandler();
+        _ClientId = _Config["clientId"] ?? Guid.NewGuid().ToString();
+        _UserAgent = ProductInfoHeaderValue.Parse(_Config["userAgent"] ??= "MathCore.SberGPT/1.0");
+
+        InnerHandler ??= new HttpClientHandler();
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel)
@@ -34,6 +41,10 @@ public class SberGPTRequestHandler : DelegatingHandler
 
         request.Headers.Authorization = access_token;
         request.Headers.Add(GptClient.RequesIdHeader, _RqUID);
+        request.Headers.Add(GptClient.ClientIdHeader, _ClientId);
+
+        if (request.Headers.UserAgent.Count == 0)
+            request.Headers.UserAgent.Add(_UserAgent);
 
         var response_message = await base.SendAsync(request, cancel);
 
@@ -55,10 +66,14 @@ public class SberGPTRequestHandler : DelegatingHandler
             Headers =
             {
                 { "Authorization", $"Bearer {secret}" },
-                { "RqUID", _RqUID },
+                { "User-Agent", _Config["userAgent"] },
+                { GptClient.RequesIdHeader, _RqUID },
+                { GptClient.ClientIdHeader, _ClientId },
             },
             Content = new FormUrlEncodedContent([new("scope", scope)]),
         };
+
+        //request.Headers.UserAgent.Add(ProductInfoHeaderValue.Parse(_Config["userAgent"]!));
 
         var response = await base.SendAsync(request, Cancel).ConfigureAwait(false);
 

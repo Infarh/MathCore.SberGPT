@@ -23,7 +23,7 @@ public partial class GptClient
     internal const string BaseUrl = "https://gigachat.devices.sberbank.ru/api/v1/";
     internal const string AuthUrl = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
     internal const string RequesIdHeader = "RqUID";
-
+    internal const string ClientIdHeader = "X-Client-ID";
 
     private readonly HttpClient _Http;
 
@@ -35,10 +35,10 @@ public partial class GptClient
     public GptClient(HttpClient Http, ILogger<GptClient> Log)
     {
         _Http = Http;
-        if (_Http.BaseAddress?.AbsoluteUri != "")
-        {
+        //if (_Http.BaseAddress?.AbsoluteUri != "")
+        //{
 
-        }
+        //}
         _Log = Log;
     }
 
