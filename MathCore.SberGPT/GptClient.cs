@@ -1,21 +1,67 @@
 ﻿using System.Collections;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Text.Unicode;
+
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using static MathCore.SberGPT.GptClient.ModelResponse;
-using static MathCore.SberGPT.GptClient.TokensCount;
+using static MathCore.SberGPT.GptClient.StreamingResponseMessage;
 
 namespace MathCore.SberGPT;
 
 /// <summary>Клиент для запросов к Giga chat</summary>
-/// <param name="http">Http-клиент для отправки запросов</param>
-public partial class GptClient(HttpClient http, ILogger<GptClient> log)
+public partial class GptClient
 {
+    internal const string BaseUrl = "https://gigachat.devices.sberbank.ru/api/v1/";
+    internal const string AuthUrl = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
+    internal const string RequesIdHeader = "RqUID";
+
+
+    private readonly HttpClient _Http;
+
+    private readonly ILogger _Log;
+
+    /// <summary>Клиент для запросов к Giga chat</summary>
+    /// <param name="Http">Http-клиент для отправки запросов</param>
+    /// <param name="Log">Логгер</param>
+    public GptClient(HttpClient Http, ILogger<GptClient> Log)
+    {
+        _Http = Http;
+        if (_Http.BaseAddress?.AbsoluteUri != "")
+        {
+
+        }
+        _Log = Log;
+    }
+
+    /// <summary>Клиент для запросов к Giga chat</summary>
+    public GptClient(IConfiguration config, ILogger<GptClient>? Log = null)
+        : this(
+            Http: new(new SberGPTRequestHandler(config, Log ?? NullLogger<GptClient>.Instance)) { BaseAddress = new(BaseUrl) },
+            Log: Log ?? NullLogger<GptClient>.Instance)
+    {
+
+    }
+
+    private static IConfiguration GetConfig(string Secret, string? Scope) => new ConfigurationBuilder()
+        .AddInMemoryCollection([new("secret", Secret), new("scope", Scope ?? "GIGACHAT_API_PERS")]).Build();
+
+    public GptClient(string Secret, string? Scope = null, ILogger<GptClient>? Log = null)
+        : this(
+            Http: new(new SberGPTRequestHandler(GetConfig(Secret, Scope), Log ?? NullLogger<GptClient>.Instance)) { BaseAddress = new(BaseUrl) },
+            Log: Log ?? NullLogger<GptClient>.Instance)
+    {
+
+    }
+
     #region Информация о типах моделей
 
     /// <summary>Ответ сервера, содержащий список моделей</summary>
@@ -33,7 +79,7 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
     {
         const string url = "models";
 
-        var response = await http
+        var response = await _Http
             .GetFromJsonAsync<ModelsInfosListResponse>(url, Cancel)
             .ConfigureAwait(false);
 
@@ -43,7 +89,7 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
             result[i] = models[i].ModelId;
 
         return result;
-    } 
+    }
 
     #endregion
 
@@ -107,7 +153,7 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
     {
         var input = Input.ToArray();
         const string url = "tokens/count";
-        var response = await http
+        var response = await _Http
             .PostAsJsonAsync<GetTokensCountRequest>(url, new(Model, input), cancellationToken: Cancel)
             .ConfigureAwait(false);
 
@@ -140,7 +186,7 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
     /// - <b>none</b> - запрет на вызов любых функций<br/>
     /// - <b>auto</b> - вызов внутренних функций и, если указано поле functions, то вызов пользовательских функций
     /// </param>
-    /// <param name="Streaming">Использовать потоковую передачу</param>
+    /// <param name="Streaming">Использовать потоковую передачу (по умолчанию false)</param>
     /// <param name="UpdateInterval">Интервал в секундах отправки результатов при потоковой передаче</param>
     /// <param name="Temperature">Величина температуры. Должна быть больше 0. Чем выше значение, тем более случайным будет ответ.</param>
     /// <param name="TemperatureAlternative">Альтернативное значение температуры. Значение от 0 до 1. Определяет процент используемых токенов запроса.</param>
@@ -150,6 +196,7 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
         [property: JsonPropertyName("messages")] Request[] Requests,
         [property: JsonPropertyName("model")] string Model = "GigaChat",
         [property: JsonPropertyName("function_call")] string? FunctionCall = "auto",
+        [property: JsonPropertyName("functions")] IEnumerable<FunctionInfo>? Functions = null,
         [property: JsonPropertyName("temperature")] double? Temperature = null,
         [property: JsonPropertyName("top_p")] double? TemperatureAlternative = null,
         [property: JsonPropertyName("stream")] bool? Streaming = null,
@@ -174,6 +221,8 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
         /// <summary>Оператор неявного преобразования кортежа, содержащего текст запроса и роль в объект запроса</summary>
         /// <param name="request">Объект запроса</param>
         public static implicit operator Request((string Content, RequestRole Role) request) => new(request.Content, request.Role);
+
+        public static implicit operator Request(string request) => new(request);
     }
 
     /// <summary>Ответ модели</summary>
@@ -187,7 +236,7 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
         [property: JsonPropertyName("created")] int CreatedUnixTime,
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("usage")] UsageValue Usage,
-        [property: JsonPropertyName("_object")] string? CallMethodName
+        [property: JsonPropertyName("object")] string? CallMethodName
         )
     {
         /// <summary>Время формирования ответа</summary>
@@ -234,6 +283,8 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
             public readonly record struct MessageValue(
                 [property: JsonPropertyName("role")] string Role,
                 [property: JsonPropertyName("content")] string Content,
+                //[property: JsonPropertyName("created")] int CreatedUnitTime,
+                //[property: JsonPropertyName("functions_state_id")] Guid FunctionsStateId,
                 [property: JsonPropertyName("data_for_context")] IReadOnlyList<MessageValue.DataForContextValue> DataForContext
             )
             {
@@ -247,9 +298,9 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
                     [property: JsonPropertyName("function_call")] DataForContextValue.FunctionCallValue? FunctionCall
                 )
                 {
-                    /// <summary></summary>
-                    /// <param name="Name"></param>
-                    /// <param name="Arguments"></param>
+                    /// <summary>Информация о вызове функции</summary>
+                    /// <param name="Name">Название функции</param>
+                    /// <param name="Arguments">Перечень аргументов</param>
                     public readonly record struct FunctionCallValue(
                         [property: JsonPropertyName("name")] string Name,
                         [property: JsonPropertyName("arguments")] IReadOnlyDictionary<string, string> Arguments
@@ -262,6 +313,7 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
         public readonly record struct UsageValue(
             [property: JsonPropertyName("prompt_tokens")] int PromptTokens,
             [property: JsonPropertyName("completion_tokens")] int CompletionTokens,
+            [property: JsonPropertyName("precached_prompt_tokens")] int PrecachedPromptTokens,
             [property: JsonPropertyName("total_tokens")] int TotalTokens
         );
     }
@@ -271,38 +323,98 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
 
     /// <summary>Запрос модели</summary>
     /// <param name="Requests">Набор параметров запроса</param>
-    /// <param name="Model">Название модели</param>
+    /// <param name="ModelName">Название модели</param>
     /// <param name="Cancel">Токен отмены асинхронной операции</param>
     /// <returns>Результат</returns>
     public async Task<IEnumerable<string>> RequestAsync(
         IEnumerable<Request> Requests,
-        string Model = "GigaChat",
-        //bool Streaming = false,
-        //int UpdateInterval = 0,
+        string ModelName = "GigaChat",
         CancellationToken Cancel = default)
     {
         const string url = "chat/completions";
 
-        ModelRequest message = new(Requests.ToArray(), Model);
+        ModelRequest message = new([.. Requests], ModelName);
 
-        var response = await http
+        var response = await _Http
             .PostAsJsonAsync(url, message, __DefaultOptions, Cancel)
             .ConfigureAwait(false);
 
         var response_message = await response
             .EnsureSuccessStatusCode()
             .Content
-            .ReadFromJsonAsync<ModelResponse>(cancellationToken: Cancel)
+            .ReadFromJsonAsync<ModelResponse>(__DefaultOptions, Cancel)
             .ConfigureAwait(false);
 
-        log.LogInformation("Успешно получен ответ от модели {ModelType}. Токенов в запросе: {PromptTokens}. Потрачено токенов: {CompletionTokens}. Итого токенов: {TotalTokens}",
+        _Log.LogInformation("Успешно получен ответ от модели {ModelType}. Токенов в запросе: {PromptTokens}. Потрачено токенов: {CompletionTokens}. Итого токенов: {TotalTokens}",
             response_message.Model,
             response_message.Usage.PromptTokens, response_message.Usage.CompletionTokens, response_message.Usage.TotalTokens);
 
         return response_message.Choices
             .Where(c => c.Message.Role is "assistant")
             .Select(c => c.Message.Content);
-    } 
+    }
+
+    public readonly record struct StreamingResponseMessage(
+        [property: JsonPropertyName("choices")] IReadOnlyList<StreamingChoiceValue> Choices,
+        [property: JsonPropertyName("created")] int CreatedUnixTime,
+        [property: JsonPropertyName("model")] string Model,
+        [property: JsonPropertyName("object")] string? CallMethodName
+    )
+    {
+        public readonly record struct StreamingChoiceValue(
+            [property: JsonPropertyName("delta")] StreamingChoiceValue.DeltaValue Delta,
+            [property: JsonPropertyName("index")] int Index
+        )
+        {
+            public readonly record struct DeltaValue(
+                [property: JsonPropertyName("content")] string Content,
+                [property: JsonPropertyName("role")] string Role
+            );
+        }
+
+        public string Message => string.Concat(Choices.Select(c => c.Delta.Content));
+
+        public string MessageAssistant => string.Concat(Choices.Where(c => c.Delta.Role == "assistant").Select(c => c.Delta.Content));
+    }
+
+    public async IAsyncEnumerable<StreamingResponseMessage> RequestStreamingAsync(
+        IEnumerable<Request> Requests,
+        string ModelName = "GigaChat",
+        [EnumeratorCancellation] CancellationToken Cancel = default)
+    {
+        const string url = "chat/completions";
+
+        ModelRequest message = new([.. Requests], ModelName) { Streaming = true };
+
+        var response = await _Http
+            .PostAsJsonAsync(url, message, __DefaultOptions, Cancel)
+            .ConfigureAwait(false);
+
+        await using var stream = await response
+            .EnsureSuccessStatusCode()
+            .Content
+            .ReadAsStreamAsync(Cancel)
+            .ConfigureAwait(false);
+
+        var reader = new StreamReader(stream);
+
+        while (await reader.ReadLineAsync(Cancel) is { } line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            if (line == "data: [DONE]")
+                break;
+
+            if (!line.StartsWith("data: "))
+                continue;
+
+            var data = line[6..].Replace("\n", Environment.NewLine);
+            var msg = JsonSerializer.Deserialize<StreamingResponseMessage>(data, __DefaultOptions);
+
+            yield return msg;
+        }
+    }
 
     #endregion
 
@@ -329,7 +441,7 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
 
         ModelRequest message = new(Requests.ToArray(), Model, FunctionCall: "auto");
 
-        var response = await http.PostAsJsonAsync(request_url, message, __DefaultOptions, Cancel).ConfigureAwait(false);
+        var response = await _Http.PostAsJsonAsync(request_url, message, __DefaultOptions, Cancel).ConfigureAwait(false);
 
         var response_message = await response
             .EnsureSuccessStatusCode()
@@ -349,7 +461,7 @@ public partial class GptClient(HttpClient http, ILogger<GptClient> log)
     /// <returns></returns>
     private async ValueTask<Stream> GetImageDownloadStreamAsync(Guid id, CancellationToken Cancel)
     {
-        var response = await http.GetAsync($"files/{id}/content", Cancel).ConfigureAwait(false);
+        var response = await _Http.GetAsync($"files/{id}/content", Cancel).ConfigureAwait(false);
 
         var stream = await response.EnsureSuccessStatusCode()
             .Content
