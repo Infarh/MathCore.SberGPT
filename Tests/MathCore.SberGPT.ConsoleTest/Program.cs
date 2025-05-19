@@ -33,7 +33,11 @@ var models = await gpt.GetModelsAsync();
 //    Console.Write(response.Message);
 //}
 
-var tokens_count = await gpt.GetTokensBalanceAsync();
+var tokens_coun1t = await gpt.GetTokensBalanceAsync();
+
+var vectors = await gpt.GetEmbeddingsAsync(["Что такое Волновая функция?", "Функциональный анализ", "Волновая физика"]);
+
+var tokens_count2 = await gpt.GetTokensBalanceAsync();
 
 var response = await gpt.RequestAsync("Что такое Волновая функция?");
 

@@ -23,6 +23,8 @@ public class SberGPTRequestHandler : DelegatingHandler
     private readonly IConfiguration _Config;
     private readonly ILogger _Log;
     private readonly string _ClientId;
+    private string? _SessionId;
+    private string? _RequestId;
     private readonly ProductInfoHeaderValue _UserAgent;
 
     public SberGPTRequestHandler(IConfiguration Config, ILogger Log)
@@ -57,7 +59,11 @@ public class SberGPTRequestHandler : DelegatingHandler
 
         request.Headers.Authorization = access_token;
         request.Headers.Add(GptClient.RequesIdHeader, _RqUID);
-        request.Headers.Add(GptClient.ClientIdHeader, _ClientId);
+        request.Headers.Add(GptClient.ClientXIdHeader, _ClientId);
+        if (_SessionId is { Length: > 0 })
+            request.Headers.Add(GptClient.SessionXIdHeader, _SessionId);
+        if (_RequestId is { Length: > 0 })
+            request.Headers.Add(GptClient.RequestXIdHeader, _RequestId);
 
         if (request.Headers.UserAgent.Count == 0)
             request.Headers.UserAgent.Add(_UserAgent);
@@ -134,10 +140,15 @@ public class SberGPTRequestHandler : DelegatingHandler
                 { "Authorization", $"Bearer {secret}" },
                 { "User-Agent", _Config["userAgent"] },
                 { GptClient.RequesIdHeader, _RqUID },
-                { GptClient.ClientIdHeader, _ClientId },
+                { GptClient.ClientXIdHeader, _ClientId },
             },
             Content = new FormUrlEncodedContent([new("scope", scope)]),
         };
+
+        if (_SessionId is { Length: > 0 })
+            request.Headers.Add(GptClient.SessionXIdHeader, _SessionId);
+        if (_RequestId is { Length: > 0 })
+            request.Headers.Add(GptClient.RequestXIdHeader, _RequestId);
 
         var response = await base.SendAsync(request, Cancel).ConfigureAwait(false);
 
