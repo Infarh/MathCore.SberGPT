@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.ComponentModel;
 using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
@@ -13,6 +14,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using static MathCore.SberGPT.GptClient.EmbeddingResponse;
+using static MathCore.SberGPT.GptClient.EmbeddingResponse.EmbeddingValue;
 using static MathCore.SberGPT.GptClient.ModelResponse;
 using static MathCore.SberGPT.GptClient.StreamingResponseMessage;
 
@@ -657,7 +660,65 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
     #region Векторизация текста
 
+    internal readonly record struct EmbeddingRequest(
+        [property: JsonPropertyName("model")] string Model,
+        [property: JsonPropertyName("input")] IEnumerable<string> Input
+    );
 
+    public enum EmbeddingModel
+    {
+        Embeddings,
+        EmbeddingsGigaR
+    }
+
+    public readonly record struct EmbeddingResponse(
+        [property: JsonPropertyName("object")] string ListIdStr,
+        [property: JsonPropertyName("data")] EmbeddingValue[] Values
+    )
+    {
+        public readonly record struct EmbeddingValue(
+            [property: JsonPropertyName("object")] string EmbeddingStr,
+            [property: JsonPropertyName("embedding")]
+            double[] Embedding,
+            [property: JsonPropertyName("index")] int Index,
+            [property: JsonPropertyName("usage")] UsageInfo Usage
+        )
+        {
+            public readonly record struct UsageInfo([property: JsonPropertyName("prompt_tokens")] int Tokens);
+
+            public int Tokens => Usage.Tokens;
+        }
+    }
+
+
+    /// <summary>Получить векторизацию текста</summary>
+    /// <param name="MessageStrings">Строки, для которых требуется вычислить вектора</param>
+    /// <param name="Model">Модель</param>
+    /// <param name="Cancel">Отмена операции</param>
+    /// <returns>Результат векторизации текста</returns>
+    public async Task<EmbeddingResponse> GetEmbeddingsAsync(IEnumerable<string> MessageStrings, EmbeddingModel Model = EmbeddingModel.Embeddings, CancellationToken Cancel = default)
+    {
+        const string url = "embeddings";
+
+        var model_name = Model switch
+        {
+            EmbeddingModel.Embeddings => "Embeddings",
+            EmbeddingModel.EmbeddingsGigaR => "EmbeddingsGigaR",
+            _ => throw new InvalidEnumArgumentException("Неподдерживаемый тип модели", (int)Model, typeof(EmbeddingModel))
+        };
+
+        var request = new EmbeddingRequest(model_name, MessageStrings);
+
+        var response = await Http.PostAsJsonAsync(url, request, __DefaultOptions, Cancel).ConfigureAwait(false);
+
+        var result = await response
+            .EnsureSuccessStatusCode()
+            .Content
+            .ReadFromJsonAsync<EmbeddingResponse>(__DefaultOptions, Cancel)
+            .ConfigureAwait(false);
+
+        return result;
+    }
 
     #endregion
 
