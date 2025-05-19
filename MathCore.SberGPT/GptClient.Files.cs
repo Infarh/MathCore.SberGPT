@@ -46,7 +46,7 @@ public partial class GptClient
         const string url = "files";
 
         _Log.LogInformation("Запрос состояния хранилища файлов...");
-        var response = await _Http.GetAsync(url, Cancel).ConfigureAwait(false);
+        var response = await Http.GetAsync(url, Cancel).ConfigureAwait(false);
 
         var files = await response
             .EnsureSuccessStatusCode()
@@ -83,7 +83,7 @@ public partial class GptClient
             {new StringContent(Purpose), "purpose"},
         };
 
-        var response = await _Http.PostAsJsonAsync(url, content, Cancel).ConfigureAwait(false);
+        var response = await Http.PostAsJsonAsync(url, content, Cancel).ConfigureAwait(false);
 
         var file_info = await response
             .EnsureSuccessStatusCode()
@@ -105,7 +105,7 @@ public partial class GptClient
         var url_address = $"{url}/{Id}";
         _Log.LogInformation("Запрос информации о файле {Id}", Id);
 
-        var response = await _Http.GetAsync(url_address, Cancel).ConfigureAwait(false);
+        var response = await Http.GetAsync(url_address, Cancel).ConfigureAwait(false);
 
         var file_info = await response
             .EnsureSuccessStatusCode()
@@ -132,7 +132,7 @@ public partial class GptClient
         const string url = "files";
         var url_address = $"{url}/{FileId}/content";
 
-        var request = await _Http.GetAsync(url_address, Cancel).ConfigureAwait(false);
+        var request = await Http.GetAsync(url_address, Cancel).ConfigureAwait(false);
 
         switch (request.StatusCode)
         {
@@ -165,7 +165,7 @@ public partial class GptClient
 
         _Log.LogInformation("Удаление файла {Id}", Id);
 
-        var response = await _Http.DeleteAsync(url_address, Cancel).ConfigureAwait(false);
+        var response = await Http.DeleteAsync(url_address, Cancel).ConfigureAwait(false);
 
         var file_info = await response
             .EnsureSuccessStatusCode()

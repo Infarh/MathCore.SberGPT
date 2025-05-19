@@ -18,29 +18,19 @@ using static MathCore.SberGPT.GptClient.StreamingResponseMessage;
 namespace MathCore.SberGPT;
 
 /// <summary>Клиент для запросов к Giga chat</summary>
-public partial class GptClient
+/// <remarks>Клиент для запросов к Giga chat</remarks>
+/// <param name="Http">Http-клиент для отправки запросов</param>
+/// <param name="Log">Логгер</param>
+public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 {
     internal const string BaseUrl = "https://gigachat.devices.sberbank.ru/api/v1/";
     internal const string AuthUrl = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
     internal const string RequesIdHeader = "RqUID";
     internal const string ClientIdHeader = "X-Client-ID";
 
-    private readonly HttpClient _Http;
+    private readonly ILogger _Log = Log;
 
-    private readonly ILogger _Log;
-
-    /// <summary>Клиент для запросов к Giga chat</summary>
-    /// <param name="Http">Http-клиент для отправки запросов</param>
-    /// <param name="Log">Логгер</param>
-    public GptClient(HttpClient Http, ILogger<GptClient> Log)
-    {
-        _Http = Http;
-        //if (_Http.BaseAddress?.AbsoluteUri != "")
-        //{
-
-        //}
-        _Log = Log;
-    }
+    #region Конструктор
 
     /// <summary>Клиент для запросов к Giga chat</summary>
     public GptClient(IConfiguration config, ILogger<GptClient>? Log = null)
@@ -62,6 +52,8 @@ public partial class GptClient
 
     }
 
+    #endregion
+
     #region Информация о типах моделей
 
     /// <summary>Ответ сервера, содержащий список моделей</summary>
@@ -79,7 +71,7 @@ public partial class GptClient
     {
         const string url = "models";
 
-        var response = await _Http
+        var response = await Http
             .GetFromJsonAsync<ModelsInfosListResponse>(url, Cancel)
             .ConfigureAwait(false);
 
@@ -153,7 +145,7 @@ public partial class GptClient
     {
         var input = Input.ToArray();
         const string url = "tokens/count";
-        var response = await _Http
+        var response = await Http
             .PostAsJsonAsync<GetTokensCountRequest>(url, new(Model, input), cancellationToken: Cancel)
             .ConfigureAwait(false);
 
@@ -335,7 +327,7 @@ public partial class GptClient
 
         ModelRequest message = new([.. Requests], ModelName);
 
-        var response = await _Http
+        var response = await Http
             .PostAsJsonAsync(url, message, __DefaultOptions, Cancel)
             .ConfigureAwait(false);
 
@@ -386,7 +378,7 @@ public partial class GptClient
 
         ModelRequest message = new([.. Requests], ModelName) { Streaming = true };
 
-        var response = await _Http
+        var response = await Http
             .PostAsJsonAsync(url, message, __DefaultOptions, Cancel)
             .ConfigureAwait(false);
 
@@ -441,7 +433,7 @@ public partial class GptClient
 
         ModelRequest message = new(Requests.ToArray(), Model, FunctionCall: "auto");
 
-        var response = await _Http.PostAsJsonAsync(request_url, message, __DefaultOptions, Cancel).ConfigureAwait(false);
+        var response = await Http.PostAsJsonAsync(request_url, message, __DefaultOptions, Cancel).ConfigureAwait(false);
 
         var response_message = await response
             .EnsureSuccessStatusCode()
@@ -461,7 +453,7 @@ public partial class GptClient
     /// <returns></returns>
     private async ValueTask<Stream> GetImageDownloadStreamAsync(Guid id, CancellationToken Cancel)
     {
-        var response = await _Http.GetAsync($"files/{id}/content", Cancel).ConfigureAwait(false);
+        var response = await Http.GetAsync($"files/{id}/content", Cancel).ConfigureAwait(false);
 
         var stream = await response.EnsureSuccessStatusCode()
             .Content
