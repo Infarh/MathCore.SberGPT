@@ -2,6 +2,9 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Configuration;
@@ -31,7 +34,11 @@ public class SberGPTRequestHandler : DelegatingHandler
         _ClientId = _Config["clientId"] ?? Guid.NewGuid().ToString();
         _UserAgent = ProductInfoHeaderValue.Parse(_Config["userAgent"] ??= "MathCore.SberGPT/1.0");
 
-        InnerHandler ??= new HttpClientHandler();
+        InnerHandler ??= new HttpClientHandler()
+        {
+            ClientCertificateOptions = ClientCertificateOption.Manual,
+            ServerCertificateCustomValidationCallback = (HttpRequestMessage, cert, CetChain, PolicyErrors) => true,
+        };
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel)
@@ -56,6 +63,47 @@ public class SberGPTRequestHandler : DelegatingHandler
     [SuppressMessage("ReSharper", "SettingNotFoundInConfiguration")]
     private async Task<AccessToken> GetAccessToken(CancellationToken Cancel)
     {
+        FileInfo? token_store_file = null;
+
+        var token_store_key = _Config["TokenEncryptionKey"];
+        var token_store_file_name = _Config["TokenStoreFile"] ?? "chat-gpt.token";
+
+        if (token_store_key is { Length: > 0 })
+        {
+            token_store_file = new FileInfo(token_store_file_name);
+            if (token_store_file.Exists)
+            {
+                var pass_bytes = SHA512.HashData(MemoryMarshal.Cast<char, byte>(token_store_key.AsSpan()));
+
+                var key_bytes = pass_bytes[..16];
+                var iv_bytes = pass_bytes[^16..];
+
+                var aes = Aes.Create();
+                aes.Key = key_bytes;
+                aes.IV = iv_bytes;
+
+                var decryptor = aes.CreateDecryptor();
+                await using var file_stream = token_store_file.OpenRead();
+                await using var crypto_stream = new CryptoStream(file_stream, decryptor, CryptoStreamMode.Read);
+
+                var token = await JsonSerializer.DeserializeAsync<AccessToken>(crypto_stream, cancellationToken: Cancel)
+                    .ConfigureAwait(false);
+
+                if (token is { Expired: false })
+                {
+                    _Log.LogInformation("Токен загружен из файла. Действует до {ExpiredTime:dd.MM.yyyy HH:mm:ss.fff} (осталось времени {DurationTime:hh\\:mm\\:ss\\.fff})",
+                        token.ExpiredTime,
+                        token.DurationTime);
+                    return token;
+                }
+                else if (token.ExpiredTime != default)
+                    _Log.LogInformation("Токен загружен из файла. Действует было завершено {ExpiredTime:dd.MM.yyyy HH:mm:ss.fff}", token.ExpiredTime);
+                else
+                    _Log.LogWarning("Ошибка зазки токена из файла.");
+
+            }
+        }
+
         var secret = _Config["secret"].NotNull("Не задан секрет авторизации sber:secret");
         var scope = _Config["scope"] ?? __DefaultScope;
 
@@ -84,8 +132,31 @@ public class SberGPTRequestHandler : DelegatingHandler
                 .ReadFromJsonAsync<GetAccessTokenResponse>(cancellationToken: Cancel)
                 .ConfigureAwait(false);
 
-            _Log.LogInformation("Успешная авторизация. Токен действует до {ExpiredTime:dd.MM.yyyy HH:mm:ss.fff}",
-                token.ExpiredTime);
+            _Log.LogInformation("Успешная авторизация. Токен действует до {ExpiredTime:dd.MM.yyyy HH:mm:ss.fff} (осталось времени {DurationTime:hh\\:mm\\:ss\\.fff})",
+                token.ExpiredTime,
+                token.DurationTime);
+
+            if (token_store_file is not null)
+            {
+                var pass_bytes = SHA512.HashData(MemoryMarshal.Cast<char, byte>(token_store_key.AsSpan()));
+
+                var key_bytes = pass_bytes[..16];
+                var iv_bytes = pass_bytes[^16..];
+
+                var aes = Aes.Create();
+                aes.Key = key_bytes;
+                aes.IV = iv_bytes;
+
+                var enctyptor = aes.CreateEncryptor();
+
+                await using var file_stream = token_store_file.Create();
+                await using var crypto_stream = new CryptoStream(file_stream, enctyptor, CryptoStreamMode.Write);
+
+                await JsonSerializer.SerializeAsync(crypto_stream, token, cancellationToken: Cancel)
+                    .ConfigureAwait(false);
+
+                _Log.LogInformation("Токен был сохранён в файл {TokenStoreFilePath}.", token_store_file.FullName);
+            }
 
             return token;
         }

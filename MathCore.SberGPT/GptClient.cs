@@ -54,6 +54,15 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
     #endregion
 
+    /// <summary>Системный запрос</summary>
+    public string? SystemPrompt { get; set; }
+
+    private readonly List<Request> _ChatHistory = [];
+
+    public IReadOnlyList<Request> Requests => _ChatHistory.AsReadOnly();
+
+    public bool UseChatHistory { get; set; } = true;
+
     #region Информация о типах моделей
 
     /// <summary>Ответ сервера, содержащий список моделей</summary>
@@ -235,6 +244,12 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         [JsonIgnore]
         public DateTimeOffset CreateTime => DateTimeOffset.UnixEpoch.AddSeconds(CreatedUnixTime / 1000d);
 
+        public IEnumerable<string> AssistMessages => Choices
+            .Where(c => c.Message.Role == "assistant")
+            .Select(c => c.Message.Content);
+
+        public string AssistMessage => AssistMessages.ToSeparatedStr(Environment.NewLine);
+
         /// <summary>Ответ модели</summary>
         /// <param name="Message">Сгенерированное сообщение</param>
         /// <param name="Index">Индекс сообщения в массиве начиная с ноля</param>
@@ -308,6 +323,31 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
             [property: JsonPropertyName("precached_prompt_tokens")] int PrecachedPromptTokens,
             [property: JsonPropertyName("total_tokens")] int TotalTokens
         );
+
+        public override string ToString()
+        {
+            const int max_length = 60;
+
+            var assist_msg = new StringBuilder();
+            foreach (var msg in AssistMessages)
+            {
+                assist_msg.AppendLine(msg);
+                if (assist_msg.Length > max_length)
+                    break;
+            }
+
+            assist_msg.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ');
+
+            if (assist_msg.Length > max_length)
+            {
+                assist_msg.Length = max_length - 3;
+                assist_msg.Append("...");
+            }
+
+            return $"assist: {assist_msg} tokens: {Usage.TotalTokens} ({Usage.PrecachedPromptTokens})";
+        }
+
+        public static implicit operator string(ModelResponse response) => response.AssistMessage;
     }
 
     /// <summary>Настройка процесса json-сериализации</summary>
@@ -318,14 +358,36 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <param name="ModelName">Название модели</param>
     /// <param name="Cancel">Токен отмены асинхронной операции</param>
     /// <returns>Результат</returns>
-    public async Task<IEnumerable<string>> RequestAsync(
-        IEnumerable<Request> Requests,
+    public async Task<ModelResponse> RequestAsync(
+        string UserPrompt,
+        string? SystemPrompt = null,
+        IEnumerable<Request>? ChatHistory = null,
         string ModelName = "GigaChat",
         CancellationToken Cancel = default)
     {
         const string url = "chat/completions";
 
-        ModelRequest message = new([.. Requests], ModelName);
+        if (UserPrompt is null)
+            throw new ArgumentNullException(nameof(UserPrompt), "Параметр не может быть null");
+
+        if (UserPrompt.Length == 0)
+            throw new ArgumentException("Параметр не может быть пустым", nameof(UserPrompt));
+
+        List<Request> requests = [];
+
+        if ((SystemPrompt ?? this.SystemPrompt) is { Length: > 0 } system_prompt)
+            requests.Add(new(system_prompt, RequestRole.system));
+
+        if (ChatHistory is not null)
+            requests.AddRange(ChatHistory);
+        else if (UseChatHistory && _ChatHistory.Count > 0)
+            requests.AddRange(_ChatHistory);
+
+        requests.Add(new(UserPrompt, RequestRole.user));
+
+        ModelRequest message = new(
+            Requests: [.. requests],
+            Model: ModelName);
 
         var response = await Http
             .PostAsJsonAsync(url, message, __DefaultOptions, Cancel)
@@ -341,9 +403,10 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
             response_message.Model,
             response_message.Usage.PromptTokens, response_message.Usage.CompletionTokens, response_message.Usage.TotalTokens);
 
-        return response_message.Choices
-            .Where(c => c.Message.Role is "assistant")
-            .Select(c => c.Message.Content);
+        _ChatHistory.Add(new(UserPrompt, RequestRole.user));
+        _ChatHistory.Add(new(response_message.Choices[0].Message.Content, RequestRole.assistant));
+
+        return response_message;
     }
 
     public readonly record struct StreamingResponseMessage(

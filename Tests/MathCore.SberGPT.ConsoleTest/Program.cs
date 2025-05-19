@@ -7,21 +7,23 @@ using Microsoft.Extensions.Logging;
 
 var cfg = new ConfigurationBuilder().AddUserSecrets(typeof(Program).Assembly).Build().GetSection("sber");
 
-var log = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<GptClient>();
+var log = LoggerFactory.Create(b => b.AddConsole().AddDebug()).CreateLogger<GptClient>();
 
 var gpt = new GptClient(cfg, log);
 
-gpt.AddFunction(GetWeather, [new("Какая погода в Лондоне в градусах Цельсия?") { { "City", "Лондон" }, { "Unit", "Celsius" } }]);
+//gpt.AddFunction(GetWeather, [new("Какая погода в Лондоне в градусах Цельсия?") { { "City", "Лондон" }, { "Unit", "Celsius" } }]);
 
 var models = await gpt.GetModelsAsync();
 
 log.LogInformation("Поддерживаемые модели: {models}", models.ToSeparatedStr(", "));
 
-await foreach (var response in gpt.RequestStreamingAsync(["Просклоняй фамилию Петров"]))
-{
-    //log.LogInformation("Response from model {ver}: {msg}", response.Model, response.Message);
-    Console.Write(response.Message);
-}
+var response = await gpt.RequestAsync("Что такое Волновая функция?");
+
+//await foreach (var response in gpt.RequestStreamingAsync(["Просклоняй фамилию Петров"]))
+//{
+//    //log.LogInformation("Response from model {ver}: {msg}", response.Model, response.Message);
+//    Console.Write(response.Message);
+//}
 
 Console.WriteLine();
 
