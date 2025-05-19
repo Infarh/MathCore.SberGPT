@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -657,6 +658,56 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     #region Векторизация текста
 
 
+
+    #endregion
+
+    #region Баланс токенов
+
+    /// <summary>Информация о количестве токенов модели</summary>
+    /// <param name="Model">Название модели</param>
+    /// <param name="TokensElapsed">Количество токенов</param>
+    public readonly record struct BalanceValue(
+        [property: JsonPropertyName("usage")] string Model,
+        [property: JsonPropertyName("value")] int TokensElapsed
+    )
+    {
+        public override string ToString() => $"{Model}:{TokensElapsed}";
+    }
+
+    /// <summary>Информация о количестве токенов</summary>
+    /// <param name="Tokens">Перечень значений количеств оставшихся токенов по моделям</param>
+    public readonly record struct BalanceInfo(
+        [property: JsonPropertyName("balance")] BalanceValue[] Tokens
+    )
+    {
+        public override string ToString() => string.Join("; ", Tokens);
+    }
+
+    /// <summary>Получить информацию о количестве токенов</summary>
+    public async Task<BalanceValue[]> GetTokensBalanceAsync(CancellationToken Cancel = default)
+    {
+        const string url = "balance";
+
+        try
+        {
+            _Log.LogInformation("Запрос количества токенов");
+            var balance = await Http.GetFromJsonAsync<BalanceInfo>(url, __DefaultOptions, Cancel).ConfigureAwait(false);
+
+            _Log.LogTrace("Оставшееся количество токенов {Balance}", balance);
+
+            return balance.Tokens;
+        }
+        catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.Forbidden)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
 
     #endregion
 }
