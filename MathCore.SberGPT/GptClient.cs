@@ -219,6 +219,14 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         [property: JsonPropertyName("content"), JsonPropertyOrder(1)] string Content,
         [property: JsonPropertyName("role"), JsonPropertyOrder(0)] RequestRole Role = RequestRole.user)
     {
+        public static Request User(string Content) => new(Content);
+
+        public static Request Assistant(string Content) => new(Content, RequestRole.assistant);
+
+        public static Request System(string Content) => new(Content, RequestRole.system);
+
+        public static Request Function(string Content) => new(Content, RequestRole.function);
+
         /// <summary>Оператор неявного преобразования кортежа, содержащего текст запроса и роль в объект запроса</summary>
         /// <param name="request">Объект запроса</param>
         public static implicit operator Request((string Content, RequestRole Role) request) => new(request.Content, request.Role);
@@ -405,8 +413,8 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
             response_message.Model,
             response_message.Usage.PromptTokens, response_message.Usage.CompletionTokens, response_message.Usage.TotalTokens);
 
-        _ChatHistory.Add(new(UserPrompt, RequestRole.user));
-        _ChatHistory.Add(new(response_message.Choices[0].Message.Content, RequestRole.assistant));
+        _ChatHistory.Add(Request.User(UserPrompt));
+        _ChatHistory.Add(Request.Assistant(response_message.AssistMessage));
 
         return response_message;
     }

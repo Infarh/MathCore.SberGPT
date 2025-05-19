@@ -2,7 +2,6 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -92,14 +91,15 @@ public class SberGPTRequestHandler : DelegatingHandler
                 aes.Key = key_bytes;
                 aes.IV = iv_bytes;
 
-                var decryptor = aes.CreateDecryptor();
-
                 try
                 {
-                    await using var file_stream = token_store_file.OpenRead();
-                    await using var crypto_stream = new CryptoStream(file_stream, decryptor, CryptoStreamMode.Read);
+                    using var decryptor = aes.CreateDecryptor();
+                    await using var crypto_stream = new CryptoStream(token_store_file.OpenRead(), decryptor, CryptoStreamMode.Read);
 
-                    var token = await JsonSerializer.DeserializeAsync<AccessToken>(crypto_stream, cancellationToken: Cancel)
+                    var token = await JsonSerializer.DeserializeAsync<AccessToken>(
+                            crypto_stream,
+                            GptClientJsonSerializationContext.Default.Options,
+                            Cancel)
                             .ConfigureAwait(false);
 
                     if (token is { Expired: false })
@@ -139,8 +139,6 @@ public class SberGPTRequestHandler : DelegatingHandler
             Content = new FormUrlEncodedContent([new("scope", scope)]),
         };
 
-        //request.Headers.UserAgent.Add(ProductInfoHeaderValue.Parse(_Config["userAgent"]!));
-
         var response = await base.SendAsync(request, Cancel).ConfigureAwait(false);
 
         try
@@ -157,7 +155,7 @@ public class SberGPTRequestHandler : DelegatingHandler
             if (token_store_file is null)
                 return token;
 
-            var pass_bytes = SHA512.HashData(MemoryMarshal.Cast<char, byte>(token_store_key.AsSpan()));
+            var pass_bytes = token_store_key!.GetSHA512();
 
             var key_bytes = pass_bytes[..32];
             var iv_bytes = pass_bytes[^16..];
@@ -166,12 +164,14 @@ public class SberGPTRequestHandler : DelegatingHandler
             aes.Key = key_bytes;
             aes.IV = iv_bytes;
 
-            var encryptor = aes.CreateEncryptor();
+            using var encryptor = aes.CreateEncryptor();
+            await using var crypto_stream = new CryptoStream(token_store_file.Create(), encryptor, CryptoStreamMode.Write);
 
-            await using var file_stream = token_store_file.Create();
-            await using var crypto_stream = new CryptoStream(file_stream, encryptor, CryptoStreamMode.Write);
-
-            await JsonSerializer.SerializeAsync(crypto_stream, token, cancellationToken: Cancel)
+            await JsonSerializer.SerializeAsync(
+                    crypto_stream,
+                    token,
+                    GptClientJsonSerializationContext.Default.Options,
+                    Cancel)
                 .ConfigureAwait(false);
 
             _Log.LogInformation("Токен был сохранён в файл {TokenStoreFilePath}.", token_store_file.FullName);

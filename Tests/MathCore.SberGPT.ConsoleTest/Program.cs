@@ -35,7 +35,11 @@ var models = await gpt.GetModelsAsync();
 
 var response = await gpt.RequestAsync("Что такое Волновая функция?");
 
-Console.WriteLine();
+Console.WriteLine(response);
+
+var response_2 = await gpt.RequestAsync("Существует ли у неё дифференциальная форма?");
+
+Console.WriteLine(response_2);
 
 Console.WriteLine("End.");
 Console.WriteLine("");
