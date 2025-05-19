@@ -244,6 +244,8 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         [JsonIgnore]
         public DateTimeOffset CreateTime => DateTimeOffset.UnixEpoch.AddSeconds(CreatedUnixTime / 1000d);
 
+        public DateTimeOffset CreateTime2 => DateTimeOffset.FromUnixTimeMilliseconds(CreatedUnixTime);
+
         public IEnumerable<string> AssistMessages => Choices
             .Where(c => c.Message.Role == "assistant")
             .Select(c => c.Message.Content);
