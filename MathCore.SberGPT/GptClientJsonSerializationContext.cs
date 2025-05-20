@@ -13,6 +13,8 @@ namespace MathCore.SberGPT;
 [JsonSerializable(typeof(GptClient.FileInfo))]
 [JsonSerializable(typeof(GptClient.BalanceInfo))]
 [JsonSerializable(typeof(GptClient.BalanceValue))]
+[JsonSerializable(typeof(GptClient.CheckTextToAIGenerationRequest))]
+[JsonSerializable(typeof(GptClient.CheckTextToAIGenerationResponse))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(double))]
 [JsonSerializable(typeof(int))]
