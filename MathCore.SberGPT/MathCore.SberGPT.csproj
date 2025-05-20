@@ -7,8 +7,31 @@
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <Version>0.0.1</Version>
+    <PackageReleaseNotes>
+      Инициализация проекта
+    </PackageReleaseNotes>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Copyright>shmachilin@yandex.ru</Copyright>
+    <Authors>Shmachilin P.A.</Authors>
+    <PackageProjectUrl>github.com/Infarh/MathCore.SberGPT</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Infarh/MathCore.SberGPT.git</RepositoryUrl>
+    <Description>Клиент для модели GigaChat</Description>
+    <PackageTags>AI;LLM;Assistant;Sber;Sberbank;ChatGPT</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.5" />
   </ItemGroup>
 
   <ItemGroup>

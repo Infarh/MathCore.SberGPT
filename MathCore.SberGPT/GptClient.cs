@@ -60,8 +60,6 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
     #endregion
 
-
-
     /// <summary>Системный запрос</summary>
     public string? SystemPrompt { get; set; }
 

@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# 17
+# Visual Studio Version 17
 VisualStudioVersion = 17.11.35222.181
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathCore.SberGPT", "MathCore.SberGPT\MathCore.SberGPT.csproj", "{63DED9F4-83BE-4459-B114-57AADAC31E95}"
@@ -10,11 +10,18 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".Services", ".Services", "{E2CBB7E2-9B64-4C53-B04E-E5DD22DE9B2F}"
 	ProjectSection(SolutionItems) = preProject
 		.gitignore = .gitignore
+		.github\copilot-instructions.md = .github\copilot-instructions.md
+		.github\workflows\publish.yml = .github\workflows\publish.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathCore.SberGPT.ConsoleTest", "Tests\MathCore.SberGPT.ConsoleTest\MathCore.SberGPT.ConsoleTest.csproj", "{F076BAAE-B709-4463-B411-90668EFA339A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathCore.SberGPT.Tests", "Tests\MathCore.SberGPT.Tests\MathCore.SberGPT.Tests.csproj", "{AF3152FC-F7D3-4F24-84ED-0899C119D513}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{6D996AE4-9656-EC8B-AAFE-06B1313C7F8C}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\publish.yml = .github\workflows\publish.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,6 +48,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{F076BAAE-B709-4463-B411-90668EFA339A} = {0468E43A-CD55-484E-ADF4-3202FE914158}
 		{AF3152FC-F7D3-4F24-84ED-0899C119D513} = {0468E43A-CD55-484E-ADF4-3202FE914158}
+		{6D996AE4-9656-EC8B-AAFE-06B1313C7F8C} = {E2CBB7E2-9B64-4C53-B04E-E5DD22DE9B2F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {39C367D2-F921-425B-AA33-F6C089325683}
