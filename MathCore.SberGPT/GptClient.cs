@@ -60,6 +60,8 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
     #endregion
 
+
+
     /// <summary>Системный запрос</summary>
     public string? SystemPrompt { get; set; }
 
@@ -68,6 +70,12 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     public IReadOnlyList<Request> Requests => _ChatHistory.AsReadOnly();
 
     public bool UseChatHistory { get; set; } = true;
+
+    /// <summary>Содержимое заголовка X-Session-Id</summary>
+    public string? SessionId { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Содержимое заголовка X-Request-Id</summary>
+    public string? RequestId { get; set; }
 
     #region Информация о типах моделей
 
@@ -124,10 +132,10 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
     /// <summary>Получить количество токенов для указанной строки ввода</summary>
     /// <param name="Input">Строка ввода</param>
-    /// <param name="Model">Тип модели из результатов вызова <see cref="GetModelsAsync"/>. По умолчанию "GigaChat"</param>
+    /// <param name="Model">Тип модели из результатов вызова <see cref="GetModelsAsync"/>. По умолчанию "GigaChat-2"</param>
     /// <param name="Cancel">Токен отмены асинхронной операции</param>
     /// <returns>Информация о количестве токенов <see cref="TokensCount"/></returns>
-    public async Task<TokensCount> GetTokensCountAsync(string Input, string Model = "GigaChat", CancellationToken Cancel = default)
+    public async Task<TokensCount> GetTokensCountAsync(string Input, string Model = "GigaChat-2", CancellationToken Cancel = default)
     {
         var tokens = await GetTokensCountAsync([Input], Model, Cancel).ConfigureAwait(false);
         return tokens[0];
@@ -153,10 +161,10 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
     /// <summary>Получить количество токенов для указанной строки ввода</summary>
     /// <param name="Input">Строки ввода</param>
-    /// <param name="Model">Тип модели из результатов вызова <see cref="GetModelsAsync"/>. По умолчанию "GigaChat"</param>
+    /// <param name="Model">Тип модели из результатов вызова <see cref="GetModelsAsync"/>. По умолчанию "GigaChat-2"</param>
     /// <param name="Cancel">Токен отмены асинхронной операции</param>
     /// <returns>Массив с информацией о количестве токенов <see cref="TokensCount"/></returns>
-    public async Task<TokensCountInfo> GetTokensCountAsync(IEnumerable<string> Input, string Model = "GigaChat", CancellationToken Cancel = default)
+    public async Task<TokensCountInfo> GetTokensCountAsync(IEnumerable<string> Input, string Model = "GigaChat-2", CancellationToken Cancel = default)
     {
         var input = Input.ToArray();
         const string url = "tokens/count";
@@ -185,6 +193,139 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
     #region Запрос модели
 
+    /// <summary>Запрос модели</summary>
+    /// <param name="Requests">Набор параметров запроса</param>
+    /// <param name="ModelName">Название модели</param>
+    /// <param name="Cancel">Токен отмены асинхронной операции</param>
+    /// <returns>Результат</returns>
+    public async Task<ModelResponse> RequestAsync(
+        string UserPrompt,
+        string? SystemPrompt = null,
+        IEnumerable<Request>? ChatHistory = null,
+        string ModelName = "GigaChat-2",
+        CancellationToken Cancel = default)
+    {
+        const string url = "chat/completions";
+
+        switch (UserPrompt)
+        {
+            case null: throw new ArgumentNullException(nameof(UserPrompt), "Параметр не может быть null");
+            case { Length: 0 }: throw new ArgumentException("Параметр не может быть пустым", nameof(UserPrompt));
+        }
+
+        List<Request> requests = [];
+
+        if ((SystemPrompt ?? this.SystemPrompt) is { Length: > 0 } system_prompt)
+            requests.Add(new(system_prompt, RequestRole.system));
+
+        if (ChatHistory is not null)
+            requests.AddRange(ChatHistory);
+        else if (UseChatHistory && _ChatHistory.Count > 0)
+            requests.AddRange(_ChatHistory);
+
+        requests.Add(new(UserPrompt, RequestRole.user));
+
+        ModelRequest message = new(
+            Requests: [.. requests],
+            Model: ModelName);
+
+        var request = GetRequestMessageJson(HttpMethod.Post, url, message, __DefaultOptions);
+
+        var response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
+
+        var response_message = await response
+            .EnsureSuccessStatusCode()
+            .Content
+            .ReadFromJsonAsync<ModelResponse>(__DefaultOptions, Cancel)
+            .ConfigureAwait(false);
+
+        _Log.LogInformation("Успешно получен ответ от модели {ModelType}. Токенов в запросе: {PromptTokens}. Потрачено токенов: {CompletionTokens}. Оплачено токенов {PrecachedPromptTokens} Итого токенов: {TotalTokens}",
+            response_message.Model,
+            response_message.Usage.PromptTokens,
+            response_message.Usage.CompletionTokens,
+            response_message.Usage.PrecachedPromptTokens,
+            response_message.Usage.TotalTokens);
+
+        _ChatHistory.Add(Request.User(UserPrompt));
+        _ChatHistory.Add(Request.Assistant(response_message));
+
+        return response_message;
+    }
+
+    public async IAsyncEnumerable<StreamingResponseMessage> RequestStreamingAsync(
+       string UserPrompt,
+       string? SystemPrompt = null,
+       IEnumerable<Request>? ChatHistory = null,
+       string ModelName = "GigaChat-2",
+       [EnumeratorCancellation] CancellationToken Cancel = default)
+    {
+        const string url = "chat/completions";
+
+        switch (UserPrompt)
+        {
+            case null: throw new ArgumentNullException(nameof(UserPrompt), "Параметр не может быть null");
+            case { Length: 0 }: throw new ArgumentException("Параметр не может быть пустым", nameof(UserPrompt));
+        }
+
+        List<Request> requests = [];
+
+        if ((SystemPrompt ?? this.SystemPrompt) is { Length: > 0 } system_prompt)
+            requests.Add(new(system_prompt, RequestRole.system));
+
+        if (ChatHistory is not null)
+            requests.AddRange(ChatHistory);
+        else if (UseChatHistory && _ChatHistory.Count > 0)
+            requests.AddRange(_ChatHistory);
+
+        requests.Add(new(UserPrompt, RequestRole.user));
+
+        ModelRequest message = new([.. requests], ModelName) { Streaming = true };
+
+        var request = GetRequestMessageJson(HttpMethod.Post, url, message, __DefaultOptions);
+
+        var response = await Http
+            .SendAsync(request, Cancel)
+            .ConfigureAwait(false);
+
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            var response_content = await response.Content.ReadAsStringAsync(Cancel);
+            throw new HttpRequestException($"Bad request: {response_content}");
+        }
+
+        await using var stream = await response
+            .EnsureSuccessStatusCode()
+            .Content
+            .ReadAsStreamAsync(Cancel)
+            .ConfigureAwait(false);
+
+        var reader = new StreamReader(stream);
+
+        var response_message = new StringBuilder();
+
+        while (await reader.ReadLineAsync(Cancel) is { } line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            if (line == "data: [DONE]")
+                break;
+
+            if (!line.StartsWith("data: "))
+                continue;
+
+            var data = line[6..].Replace("\n", Environment.NewLine);
+            var msg = JsonSerializer.Deserialize<StreamingResponseMessage>(data, __DefaultOptions);
+
+            yield return msg;
+
+            response_message.AppendLine(msg.MessageAssistant);
+        }
+
+        _ChatHistory.Add(Request.User(UserPrompt));
+        _ChatHistory.Add(Request.Assistant(response_message.ToString()));
+    }
+
     /// <summary>Сообщение запроса к модели</summary>
     /// <param name="Requests">Массив элементов запроса</param>
     /// <param name="Model">Тип модели</param>
@@ -201,7 +342,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <param name="RepetitionPenalty">Количество повторений слов. По умолчанию 1.0. При значении больше 1 модель будет стараться не повторять слова.</param>
     internal readonly record struct ModelRequest(
         [property: JsonPropertyName("messages")] Request[] Requests,
-        [property: JsonPropertyName("model")] string Model = "GigaChat",
+        [property: JsonPropertyName("model")] string Model = "GigaChat-2",
         [property: JsonPropertyName("function_call")] string? FunctionCall = "auto",
         [property: JsonPropertyName("functions")] IEnumerable<FunctionInfo>? Functions = null,
         [property: JsonPropertyName("temperature")] double? Temperature = null,
@@ -369,62 +510,6 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <summary>Настройка процесса json-сериализации</summary>
     private static readonly JsonSerializerOptions __DefaultOptions = new(GptClientJsonSerializationContext.Default.Options) { Encoder = JavaScriptEncoder.Create(UnicodeRanges.Cyrillic, UnicodeRanges.BasicLatin), };
 
-    /// <summary>Запрос модели</summary>
-    /// <param name="Requests">Набор параметров запроса</param>
-    /// <param name="ModelName">Название модели</param>
-    /// <param name="Cancel">Токен отмены асинхронной операции</param>
-    /// <returns>Результат</returns>
-    public async Task<ModelResponse> RequestAsync(
-        string UserPrompt,
-        string? SystemPrompt = null,
-        IEnumerable<Request>? ChatHistory = null,
-        string ModelName = "GigaChat",
-        CancellationToken Cancel = default)
-    {
-        const string url = "chat/completions";
-
-        if (UserPrompt is null)
-            throw new ArgumentNullException(nameof(UserPrompt), "Параметр не может быть null");
-
-        if (UserPrompt.Length == 0)
-            throw new ArgumentException("Параметр не может быть пустым", nameof(UserPrompt));
-
-        List<Request> requests = [];
-
-        if ((SystemPrompt ?? this.SystemPrompt) is { Length: > 0 } system_prompt)
-            requests.Add(new(system_prompt, RequestRole.system));
-
-        if (ChatHistory is not null)
-            requests.AddRange(ChatHistory);
-        else if (UseChatHistory && _ChatHistory.Count > 0)
-            requests.AddRange(_ChatHistory);
-
-        requests.Add(new(UserPrompt, RequestRole.user));
-
-        ModelRequest message = new(
-            Requests: [.. requests],
-            Model: ModelName);
-
-        var response = await Http
-            .PostAsJsonAsync(url, message, __DefaultOptions, Cancel)
-            .ConfigureAwait(false);
-
-        var response_message = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<ModelResponse>(__DefaultOptions, Cancel)
-            .ConfigureAwait(false);
-
-        _Log.LogInformation("Успешно получен ответ от модели {ModelType}. Токенов в запросе: {PromptTokens}. Потрачено токенов: {CompletionTokens}. Итого токенов: {TotalTokens}",
-            response_message.Model,
-            response_message.Usage.PromptTokens, response_message.Usage.CompletionTokens, response_message.Usage.TotalTokens);
-
-        _ChatHistory.Add(Request.User(UserPrompt));
-        _ChatHistory.Add(Request.Assistant(response_message.AssistMessage));
-
-        return response_message;
-    }
-
     public readonly record struct StreamingResponseMessage(
         [property: JsonPropertyName("choices")] IReadOnlyList<StreamingChoiceValue> Choices,
         [property: JsonPropertyName("created")] int CreatedUnixTime,
@@ -448,45 +533,6 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         public string MessageAssistant => string.Concat(Choices.Where(c => c.Delta.Role == "assistant").Select(c => c.Delta.Content));
     }
 
-    public async IAsyncEnumerable<StreamingResponseMessage> RequestStreamingAsync(
-        IEnumerable<Request> Requests,
-        string ModelName = "GigaChat",
-        [EnumeratorCancellation] CancellationToken Cancel = default)
-    {
-        const string url = "chat/completions";
-
-        ModelRequest message = new([.. Requests], ModelName) { Streaming = true };
-
-        var response = await Http
-            .PostAsJsonAsync(url, message, __DefaultOptions, Cancel)
-            .ConfigureAwait(false);
-
-        await using var stream = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadAsStreamAsync(Cancel)
-            .ConfigureAwait(false);
-
-        var reader = new StreamReader(stream);
-
-        while (await reader.ReadLineAsync(Cancel) is { } line)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            if (line == "data: [DONE]")
-                break;
-
-            if (!line.StartsWith("data: "))
-                continue;
-
-            var data = line[6..].Replace("\n", Environment.NewLine);
-            var msg = JsonSerializer.Deserialize<StreamingResponseMessage>(data, __DefaultOptions);
-
-            yield return msg;
-        }
-    }
-
     #endregion
 
     #region Генерация изображения
@@ -505,7 +551,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <returns></returns>
     public async Task<Guid> GenerateImageAsync(
         IEnumerable<Request> Requests,
-        string Model = "GigaChat",
+        string Model = "GigaChat-2",
         CancellationToken Cancel = default)
     {
         const string request_url = "chat/completions";
@@ -584,7 +630,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <returns></returns>
     public async Task<byte[]> GenerateAndDownloadImageAsync(
         IEnumerable<Request> Requests,
-        string Model = "GigaChat",
+        string Model = "GigaChat-2",
         CancellationToken Cancel = default)
     {
         var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
@@ -601,7 +647,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     public async Task GenerateAndDownloadImageAsync(
         IEnumerable<Request> Requests,
         Func<byte[], Task> ProcessData,
-        string Model = "GigaChat",
+        string Model = "GigaChat-2",
         CancellationToken Cancel = default)
     {
         var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
@@ -618,7 +664,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     public async Task GenerateAndDownloadImageAsync(
         IEnumerable<Request> Requests,
         Func<byte[], CancellationToken, Task> ProcessData,
-        string Model = "GigaChat",
+        string Model = "GigaChat-2",
         CancellationToken Cancel = default)
     {
         var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
@@ -635,7 +681,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     public async Task GenerateAndDownloadImageAsync(
         IEnumerable<Request> Requests,
         Func<Stream, Task> ProcessStream,
-        string Model = "GigaChat",
+        string Model = "GigaChat-2",
         CancellationToken Cancel = default)
     {
         var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
@@ -651,7 +697,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     public async Task GenerateAndDownloadImageAsync(
         IEnumerable<Request> Requests,
         Func<Stream, CancellationToken, Task> ProcessStream,
-        string Model = "GigaChat",
+        string Model = "GigaChat-2",
         CancellationToken Cancel = default)
     {
         var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);

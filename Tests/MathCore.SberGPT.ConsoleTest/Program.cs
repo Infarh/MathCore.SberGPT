@@ -16,39 +16,38 @@ var log = LoggerFactory
             ("MathCore.SberGPT.GptClient", >= LogLevel.Trace) => true,
             (_, >= LogLevel.Information) => true,
             _ => false
-        }))
+        })
+        )
     .CreateLogger<GptClient>();
 
 var gpt = new GptClient(cfg, log);
 
-//gpt.AddFunction(GetWeather, [new("Какая погода в Лондоне в градусах Цельсия?") { { "City", "Лондон" }, { "Unit", "Celsius" } }]);
+var last_balance = 0;
+while (true)
+{
+    var balance = (await gpt.GetTokensBalanceAsync().ConfigureAwait(false)).First(b => b.Model == "GigaChat").TokensElapsed;
+    Console.Title = last_balance == 0
+        ? $"Баланс токенов: {balance}"
+        : $"Баланс токенов: {balance}({balance - last_balance})";
+    last_balance = balance;
 
-var models = await gpt.GetModelsAsync();
-//log.LogInformation("Поддерживаемые модели: {models}", models.ToSeparatedStr(", "));
+    Console.Write(">>> ");
+    var user_request = Console.ReadLine()?.Trim();
 
+    if (user_request is not { Length: > 0 }) continue;
+    if (user_request.Equals("/bye", StringComparison.OrdinalIgnoreCase)) break;
 
-//await foreach (var response in gpt.RequestStreamingAsync(["Просклоняй фамилию Петров"]))
-//{
-//    //log.LogInformation("Response from model {ver}: {msg}", response.Model, response.Message);
-//    Console.Write(response.Message);
-//}
+    await gpt.RequestStreamingAsync(user_request).PrintToAsync(Console.Out);
+    //var response = await gpt.RequestAsync(user_request).ConfigureAwait(false);
+    //Console.WriteLine(response);
+    Console.WriteLine();
 
-var tokens_coun1t = await gpt.GetTokensBalanceAsync();
+    //await foreach (var response in gpt.RequestStreamingAsync(user_request))
+    //    Console.Write(response.Message);
+}
 
-var vectors = await gpt.GetEmbeddingsAsync(["Что такое Волновая функция?", "Функциональный анализ", "Волновая физика"]);
-
-var tokens_count2 = await gpt.GetTokensBalanceAsync();
-
-var response = await gpt.RequestAsync("Что такое Волновая функция?");
-
-Console.WriteLine(response);
-
-var response_2 = await gpt.RequestAsync("Существует ли у неё дифференциальная форма?");
-
-Console.WriteLine(response_2);
 
 Console.WriteLine("End.");
-Console.WriteLine("");
 return;
 
 [FunctionName("GetCityWeather")]
