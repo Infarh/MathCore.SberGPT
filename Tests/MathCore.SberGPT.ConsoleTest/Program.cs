@@ -4,8 +4,57 @@ using MathCore.SberGPT.Attributes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
+const string token = "eyJjdHk-------3QiLCJlbmMiOiJBM--------------iYWxnIjoiUlNBLU9B---------In0.uCM4bgxJO-------------Fn8sqpx3d52qJ_SecYxdCuROwk_q4EV-----1hp4ECTUV_cTEjBYmtTxVTl6cpcKjC8-z-ukWOa-------sxLQ-Cb39_iApVpOvjsjaxnwR_GLG2fAGBcbn57kgUCdKMnvNmvLEOH0s25pH0Bd3jhdA5DtU6GUM1TgDXLXFokXlQJPSX4lxpD50OtMpjk-umwV3M7Hlm4Cmwgts9RAtqmK_zdSOsFOgmk9NgFAlRnR14nlqB3eBW7g62JVzcmLCuzy_HPy7CxDIwQWcib5vynrO1RwuMwue91o5QpZn7Q.ibb1LIdLko4Yfn5uQJv6Xg.ORM-2zGX6SNKMEDswOrjskzMEe2vbQR90PdfOzciyhGRSsYChZxDSJZe67tE1gsP2bn5DqgsuDhdjppXgQ6R-lz26iUl8_LG8IZRLsW_s7FZlQEoC15jeu2j9WwoS_-v8sSZFMCKwPQCKbOnB31qsnmIcbtYRQQr15y8mMZaRoO616-BfdSnpiGdDDjpUJkgFTmn0uVavxjcKsL6hYGYNxZ_rQZoXO0T09TRMNoNYb07lrcIidEFjLiNiP0RH7SwdUUQa2x0fd6mMl09H7BWwTS5h3c9H0lWn_vkliwPwtzBJ6mYZ7iv8Df1TXDoPsyoL-rahputZUSezqorHg-vEERn8VXdtKuAazG6qUFXP8QGx6wjCWG2xgH9Wbh64F3flZZQWOS1bya2xEu1K8-x3GMyoDKxHHEIAL4X71qcFT1Je179Vzc9WT7YRKDFqwTMzWTQdfVjLGRNSUp8WLcTePY78TIQA5ccmtuLOMWchpHHeydq4vsJ5LaY4zfSZp7Gqj7XzsFDf9MTttx-yvGHNmopW0ofFGUfJht8PVwfBg9TWENqIfCXwFKglDVPvOH85nO92i0V-mNiM2q9MCbOXAQQKYTLSmhIUCVo-AweinOeQj_G9ufsAC0et4MHno4HUNVhrCYRZajQWKONlrV9DvqfBSylXdFa0R00mbaT1ZcnznxSQMwzGIzuBBCSon_taxFvgQwphEu8P5c_unzVoi4Xwt6v0xfHtsfW4OhurUY.ADO0gk--------JAvpkexSy9t6yTtUw";
+const string data_path = "d:\\TestFile.txt";
 
-var cfg = new ConfigurationBuilder().AddUserSecrets(typeof(Program).Assembly).Build().GetSection("sber");
+using (var client = new HttpClient())
+{
+    var request = new HttpRequestMessage(HttpMethod.Post, "https://gigachat.devices.sberbank.ru/api/v1/files");
+
+    request.Headers.Accept.ParseAdd("*/*");
+    request.Headers.Authorization = new("Bearer", token);
+    request.Headers.UserAgent.ParseAdd("MathCore.SberGPT/1.0");
+
+    var content = new MultipartFormDataContent
+    {
+    };
+    content.Add(new StreamContent(File.OpenRead(data_path)), "file", "file.txt");
+    request.Content = content;
+
+    try
+    {
+        using var response = await client.SendAsync(request);
+        var response_body = await response.Content.ReadAsStringAsync();
+        Console.WriteLine(response_body);
+    }
+    catch (HttpRequestException e)
+    {
+        Console.WriteLine(e.Message);
+    }
+}
+
+if (false)
+    using (var http = new HttpClient())
+    {
+        http.DefaultRequestHeaders.Authorization = new("Bearer", token);
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("MathCore.SberGPT/1.0");
+
+        using var form = new MultipartFormDataContent
+    {
+        { new StreamContent(File.OpenRead(data_path)), "file", "TestFile.txt" },
+        { new StringContent("general"), "purpose" }
+    };
+
+        var response = await http.PostAsync("https://gigachat.devices.sberbank.ru/api/v1/", form);
+
+        var str = await response.Content.ReadAsStringAsync();
+        Console.WriteLine(str);
+    }
+
+var cfg = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json", true)
+    .AddUserSecrets(typeof(Program).Assembly)
+    .Build();
 
 var log = LoggerFactory
     .Create(b => b
@@ -17,34 +66,28 @@ var log = LoggerFactory
             (_, >= LogLevel.Information) => true,
             _ => false
         })
+        .AddConfiguration(cfg)
         )
     .CreateLogger<GptClient>();
 
-var gpt = new GptClient(cfg, log);
+var cfg_sber = cfg.GetSection("sber");
 
-var last_balance = 0;
-while (true)
+var gpt = new GptClient(cfg_sber, log);
+
+var files = await gpt.GetFilesAsync();
+
+
+using (var data = new MemoryStream())
 {
-    var balance = (await gpt.GetTokensBalanceAsync().ConfigureAwait(false)).First(b => b.Model == "GigaChat").TokensElapsed;
-    Console.Title = last_balance == 0
-        ? $"Баланс токенов: {balance}"
-        : $"Баланс токенов: {balance}({balance - last_balance})";
-    last_balance = balance;
+    var writer = new StreamWriter(data);
+    writer.WriteLine("Hello World!");
+    writer.Flush();
+    data.Seek(0, SeekOrigin.Begin);
 
-    Console.Write(">>> ");
-    var user_request = Console.ReadLine()?.Trim();
-
-    if (user_request is not { Length: > 0 }) continue;
-    if (user_request.Equals("/bye", StringComparison.OrdinalIgnoreCase)) break;
-
-    await gpt.RequestStreamingAsync(user_request).PrintToAsync(Console.Out);
-    //var response = await gpt.RequestAsync(user_request).ConfigureAwait(false);
-    //Console.WriteLine(response);
-    Console.WriteLine();
-
-    //await foreach (var response in gpt.RequestStreamingAsync(user_request))
-    //    Console.Write(response.Message);
+    await gpt.UploadFileAsync($"hello.txt", data);
 }
+
+var files2 = await gpt.GetFilesAsync();
 
 
 Console.WriteLine("End.");
@@ -56,6 +99,24 @@ static string GetWeather(
     [FunctionDescription("Город")] string City,
     [FunctionDescription("Единицы измерения температуры")] string Unit)
     => $"Погода в {City}: солнечно, 25 deg {Unit}";
+
+internal class StudentGroup
+{
+    public int Id { get; set; }
+
+    public string Name { get; set; }
+}
+
+internal class Student
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public StudentGroup Group { get; set; } = null!;
+
+    public double Rating { get; set; }
+
+    public Dictionary<string, string> MetaData { get; set; } = [];
+}
 
 //var builder = Host.CreateDefaultBuilder(args)
 //        .ConfigureAppConfiguration(c => c.AddUserSecrets(typeof(Program).Assembly))

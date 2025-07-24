@@ -1,8 +1,9 @@
 ﻿using System.Collections;
-using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Schema;
 using System.Text.Json.Serialization;
 
 using MathCore.SberGPT.Attributes;
@@ -50,52 +51,9 @@ public partial class GptClient
 
     private readonly Dictionary<string, FunctionInfo> _Functions = new();
 
-    private static readonly ImmutableHashSet<Type> __SimpleTypes = [
-        typeof(char), typeof(string),
-        typeof(byte), typeof(sbyte),
-        typeof(short), typeof(ushort),
-        typeof(int), typeof(uint),
-        typeof(long), typeof(ulong),
-        typeof(Half), typeof(float), typeof(double),
-        typeof(decimal),
-        typeof(bool),
-        typeof(DateTime),
-        typeof(DateTimeOffset),
-        typeof(TimeSpan)
-    ];
-
-    private static bool IsSimpleType(Type type) => __SimpleTypes.Contains(type) || type.IsEnum || type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
-
-    private static JsonDocument GetTypeDescription(Type type)
+    public static JsonNode GetTypeDescription(Type type)
     {
-        if (IsSimpleType(type))
-        {
-            var type_name = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>)
-                ? Nullable.GetUnderlyingType(type)!.Name
-                : type.Name;
-
-            return JsonDocument.Parse($"\"{type_name}\"");
-        }
-
-        if (type.IsArray)
-        {
-            var element_type = type.GetElementType()!;
-            var element_description = GetTypeDescription(element_type);
-            return JsonDocument.Parse($"{{\"type\": \"array\", \"items\": {element_description.RootElement}}}");
-        }
-
-        if (type.IsGenericType && typeof(IEnumerable).IsAssignableFrom(type) && type.GetGenericArguments() is [var gen_arg0])
-        {
-            var element_description = GetTypeDescription(gen_arg0);
-            return JsonDocument.Parse($"{{\"type\": \"list\", \"items\": {element_description.RootElement}}}");
-        }
-
-        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .ToDictionary(
-                prop => prop.Name,
-                prop => GetTypeDescription(prop.PropertyType));
-
-        var json = JsonSerializer.Serialize(properties);
-        return JsonDocument.Parse(json);
+        var schema = JsonSerializerOptions.Default.GetJsonSchemaAsNode(type);
+        return schema;
     }
 }

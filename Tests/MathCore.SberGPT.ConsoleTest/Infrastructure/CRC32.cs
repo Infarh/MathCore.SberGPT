@@ -65,16 +65,85 @@ public class Crc32
         }
     }
 
-    /// <summary>Вычисляет CRC32 для массива байт</summary>
-    /// <param name="Data">Входной массив байт.</param>
+    /// <summary>Вычисляет CRC32 для потока данных</summary>
+    /// <param name="Stream">Входной поток данных.</param>
     /// <param name="PreviousCrc">Предыдущее значение CRC для последовательного расчёта.</param>
     /// <returns>Вычисленное значение CRC32.</returns>
-    public uint Compute(byte[] Data, uint PreviousCrc = 0)
+    public uint Compute(Stream Stream, uint PreviousCrc = 0)
     {
-        ArgumentNullException.ThrowIfNull(Data);
+        ArgumentNullException.ThrowIfNull(Stream);
+        var crc = _Init ^ PreviousCrc;
+        const int buffer_length = 4096;
+        var buffer_array = System.Buffers.ArrayPool<byte>.Shared.Rent(buffer_length);
+        var buffer = buffer_array.AsSpan(0, buffer_length);
+
+        try
+        {
+            if (_RefIn)
+                while (Stream.Read(buffer) is > 0 and var read)
+                    for (var i = 0; i < read; i++)
+                        crc = (crc >> 8) ^ _CRCTable[(crc & 0xFF) ^ ReflectByte(buffer_array[i])];
+            else
+                while (Stream.Read(buffer) is > 0 and var read)
+                    for (var i = 0; i < read; i++)
+                        crc = (crc << 8) ^ _CRCTable[(crc >> 24) ^ buffer_array[i]];
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(buffer_array);
+        }
+
+        var result = _RefOut ? ReflectCrc(crc) : crc;
+        return result ^ _XorOut;
+    }
+
+    /// <summary>Вычисляет CRC32 для потока данных</summary>
+    /// <param name="Stream">Входной поток данных.</param>
+    /// <param name="PreviousCrc">Предыдущее значение CRC для последовательного расчёта.</param>
+    /// <param name="Cancel">Отмена асинхронной операции</param>
+    /// <returns>Вычисленное значение CRC32.</returns>
+    public async ValueTask<uint> ComputeAsync(Stream Stream, uint PreviousCrc = 0, CancellationToken Cancel = default)
+    {
+        ArgumentNullException.ThrowIfNull(Stream);
 
         var crc = _Init ^ PreviousCrc;
+        const int buffer_length = 4096;
+        var buffer_array = System.Buffers.ArrayPool<byte>.Shared.Rent(buffer_length);
+        var buffer = buffer_array.AsMemory(0, buffer_length);
 
+        try
+        {
+            if (_RefIn)
+                while (await Stream.ReadAsync(buffer, Cancel).ConfigureAwait(false) is > 0 and var read)
+                {
+                    var buffer_span = buffer.Span;
+                    for (var i = 0; i < read; i++)
+                        crc = (crc >> 8) ^ _CRCTable[(crc & 0xFF) ^ ReflectByte(buffer_span[i])];
+                }
+            else
+                while (await Stream.ReadAsync(buffer, Cancel).ConfigureAwait(false) is > 0 and var read)
+                {
+                    var buffer_span = buffer.Span;
+                    for (var i = 0; i < read; i++)
+                        crc = (crc << 8) ^ _CRCTable[(crc >> 24) ^ buffer_span[i]];
+                }
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(buffer_array);
+        }
+
+        var result = _RefOut ? ReflectCrc(crc) : crc;
+        return result ^ _XorOut;
+    }
+
+    /// <summary>Вычисляет CRC32 для диапазона байт</summary>
+    /// <param name="Data">Входной диапазон байт.</param>
+    /// <param name="PreviousCrc">Предыдущее значение CRC для последовательного расчёта.</param>
+    /// <returns>Вычисленное значение CRC32.</returns>
+    public uint Compute(ReadOnlySpan<byte> Data, uint PreviousCrc = 0)
+    {
+        var crc = _Init ^ PreviousCrc;
         if (_RefIn)
             foreach (var b in Data)
             {

@@ -27,6 +27,7 @@ namespace MathCore.SberGPT;
 /// <param name="Log">Логгер</param>
 public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 {
+    //internal const string BaseUrl = "http://localhost:8881";
     internal const string BaseUrl = "https://gigachat.devices.sberbank.ru/api/v1/";
     internal const string AuthUrl = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
     internal const string RequesIdHeader = "RqUID";

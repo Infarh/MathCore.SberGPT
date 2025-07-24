@@ -11,15 +11,17 @@ public partial class GptClient
     /// <summary>Информация о файле</summary>
     /// <param name="Id">Идентификатор</param>
     /// <param name="Name">Имя файла</param>
+    /// <param name="CreatedAt">Время создания файла в формате</param>
     /// <param name="Type">Тип файла</param>
     /// <param name="Length">Размер файла в байтах</param>
     /// <param name="Purpose">Назначение (general)</param>
     /// <param name="AccessPolicy">Доступность файла (public|private)</param>
-    public readonly record struct FileInfo(
+    public readonly record struct FileDescription(
         [property: JsonPropertyName("id")] Guid Id
         , [property: JsonPropertyName("filename")] string Name
+        , [property: JsonPropertyName("created_at"), JsonConverter(typeof(UnixDateTimeConverter))] DateTime CreatedAt
         , [property: JsonPropertyName("object")] string Type
-        , [property: JsonPropertyName("bytes"), JsonConverter(typeof(UnixDateTimeConverter))] string Length
+        , [property: JsonPropertyName("bytes")] int Length
         , [property: JsonPropertyName("purpose")] string Purpose
         , [property: JsonPropertyName("access_policy")] AccessPolicy AccessPolicy
     );
@@ -38,28 +40,42 @@ public partial class GptClient
     /// <summary>Режим доступа</summary>
     public enum AccessPolicy { Private, Public }
 
+    internal record struct GetFilesResponse(
+        [property: JsonPropertyName("data")] FileDescription[] Files
+        );
+
     /// <summary>Получить список доступных файлов</summary>
     /// <param name="Cancel">Отмена операции</param>
     /// <returns>Список файлов</returns>
-    public async Task<FileInfo[]> GetFilesAsync(CancellationToken Cancel = default)
+    public async Task<FileDescription[]> GetFilesAsync(CancellationToken Cancel = default)
     {
         const string url = "files";
 
         _Log.LogInformation("Запрос состояния хранилища файлов...");
         var response = await Http.GetAsync(url, Cancel).ConfigureAwait(false);
 
-        var files = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<FileInfo[]>(__DefaultOptions, Cancel)
-            .ConfigureAwait(false);
+        try
+        {
+            var result = await response
+               .EnsureSuccessStatusCode()
+               .Content
+               .ReadFromJsonAsync<GetFilesResponse>(__DefaultOptions, Cancel)
+               .ConfigureAwait(false);
 
-        if (files is null)
-            throw new InvalidOperationException("Не удалось получить список файлов");
+            if (result is not { Files: { Length: var files_count } files })
+                throw new InvalidOperationException("Не удалось получить список файлов");
 
-        _Log.LogInformation("Получено файлов {FilesCount}", files.Length);
+            _Log.LogInformation("Получено файлов {FilesCount}", files_count);
 
-        return files;
+            return files;
+        }
+        catch (InvalidOperationException ex)
+        {
+            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            _Log.LogError(ex, "Ошибка при получении файлов: {Message}", content);
+
+            throw;
+        }
     }
 
     /// <summary>Загрузить файл в хранилище</summary>
@@ -68,27 +84,30 @@ public partial class GptClient
     /// <param name="Purpose">Назначение (по умолчанию должно быть general)</param>
     /// <param name="Cancel">Отмена операции</param>
     /// <returns>Информация о загруженном файле</returns>
-    public async Task<FileInfo> UploadFileAsync(
+    public async Task<FileDescription> UploadFileAsync(
         string FileName,
         Stream FileStream,
         string Purpose = "general",
         CancellationToken Cancel = default)
     {
+        ArgumentNullException.ThrowIfNull(FileName);
+        ArgumentNullException.ThrowIfNull(FileStream);
+
         const string url = "files";
         _Log.LogInformation("Загрузка файла {FileName} в хранилище...", FileName);
 
-        var content = new MultipartFormDataContent()
+        var content = new MultipartFormDataContent
         {
-            {new StreamContent(FileStream), "file", FileName},
+            {new StreamContent(FileStream) { Headers = { ContentType = new("application/octet-stream") }}, "file", FileName},
             {new StringContent(Purpose), "purpose"},
         };
 
-        var response = await Http.PostAsJsonAsync(url, content, Cancel).ConfigureAwait(false);
+        var response = await Http.PostAsync(url, content, Cancel).ConfigureAwait(false);
 
         var file_info = await response
             .EnsureSuccessStatusCode()
             .Content
-            .ReadFromJsonAsync<FileInfo>(__DefaultOptions, Cancel)
+            .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
             .ConfigureAwait(false);
 
         if (file_info is not { Name: { Length: > 0 } })
@@ -99,7 +118,7 @@ public partial class GptClient
         return file_info;
     }
 
-    public async Task<FileInfo> GetFileInfoAsync(Guid Id, CancellationToken Cancel = default)
+    public async Task<FileDescription> GetFileInfoAsync(Guid Id, CancellationToken Cancel = default)
     {
         const string url = "files";
         var url_address = $"{url}/{Id}";
@@ -110,7 +129,7 @@ public partial class GptClient
         var file_info = await response
             .EnsureSuccessStatusCode()
             .Content
-            .ReadFromJsonAsync<FileInfo>(__DefaultOptions, Cancel)
+            .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
             .ConfigureAwait(false);
 
         if (file_info is not { Name: { Length: > 0 } })
