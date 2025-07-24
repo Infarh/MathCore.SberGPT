@@ -1,49 +1,37 @@
 ﻿using MathCore.SberGPT;
 using MathCore.SberGPT.Attributes;
+using MathCore.SberGPT.ConsoleTest.HostedServices;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+var builder = Host.CreateApplicationBuilder();
 
+var cfg = builder.Configuration;
+cfg.AddJsonFile("appsettings.json", true);
+cfg.AddUserSecrets(typeof(Program).Assembly);
 
-var cfg = new ConfigurationBuilder()
-    .AddJsonFile("appsettings.json", true)
-    .AddUserSecrets(typeof(Program).Assembly)
-    .Build();
-
-var log = LoggerFactory
-    .Create(b => b
-        .AddConsole()
-        .AddDebug()
-        .AddFilter((n, l) => (n, l) switch
-        {
-            ("MathCore.SberGPT.GptClient", >= LogLevel.Trace) => true,
-            (_, >= LogLevel.Information) => true,
-            _ => false
-        })
-        .AddConfiguration(cfg)
-        )
-    .CreateLogger<GptClient>();
-
-var cfg_sber = cfg.GetSection("sber");
-
-var gpt = new GptClient(cfg_sber, log);
-
-var files = await gpt.GetFilesAsync();
-
-
-using (var data = new MemoryStream())
+var log = builder.Logging;
+log.AddConsole();
+log.AddDebug();
+log.AddFilter((n, l) => (n, l) switch
 {
-    var writer = new StreamWriter(data);
-    writer.WriteLine("Hello World!");
-    writer.Flush();
-    data.Seek(0, SeekOrigin.Begin);
+    ("MathCore.SberGPT.GptClient", >= LogLevel.Trace) => true,
+    (_, >= LogLevel.Information) => true,
+    _ => false
+});
+log.AddConfiguration(cfg);
 
-    await gpt.UploadFileAsync($"hello.txt", data);
-}
+var srv = builder.Services;
+srv.AddSberGPT();
 
-var files2 = await gpt.GetFilesAsync();
+srv.AddHostedService<MainWorker>();
 
+var app = builder.Build();
+
+await app.RunAsync();
 
 Console.WriteLine("End.");
 return;

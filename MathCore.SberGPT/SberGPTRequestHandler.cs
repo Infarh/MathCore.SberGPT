@@ -33,12 +33,12 @@ public class SberGPTRequestHandler : DelegatingHandler
         _ClientId = _Config["clientId"] ?? Guid.NewGuid().ToString();
         _UserAgent = ProductInfoHeaderValue.Parse(_Config["userAgent"] ??= "MathCore.SberGPT/1.0");
 
-        InnerHandler ??= new HttpClientHandler
-        {
-            ClientCertificateOptions = ClientCertificateOption.Manual,
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
-            AutomaticDecompression = DecompressionMethods.All
-        };
+        //InnerHandler ??= new HttpClientHandler
+        //{
+        //    ClientCertificateOptions = ClientCertificateOption.Manual,
+        //    ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+        //    AutomaticDecompression = DecompressionMethods.All
+        //};
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel)

@@ -9,6 +9,8 @@ namespace MathCore.SberGPT;
 [JsonSerializable(typeof(GptClient.StreamingResponseMessage))]
 [JsonSerializable(typeof(GptClient.EmbeddingRequest))]
 [JsonSerializable(typeof(GptClient.EmbeddingResponse))]
+[JsonSerializable(typeof(GptClient.ValidationFunctionRequest))]
+[JsonSerializable(typeof(GptClient.ValidationFunctionResult))]
 [JsonSerializable(typeof(GptClient.FunctionInfo))]
 [JsonSerializable(typeof(GptClient.GetFilesResponse))]
 [JsonSerializable(typeof(GptClient.BalanceInfo))]

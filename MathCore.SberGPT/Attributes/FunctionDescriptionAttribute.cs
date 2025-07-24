@@ -7,4 +7,3 @@ public sealed class FunctionDescriptionAttribute(string Description) : Attribute
 
     public string Description { get; set; } = Description;
 }
-
