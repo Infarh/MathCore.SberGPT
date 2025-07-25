@@ -214,7 +214,7 @@ public partial class GptClient
         if (simple_type != type.Name)
         {
             var variants = type.IsEnum ? GetEnumVariants(type) : null;
-            return new FunctionInfo.TypeDescription(simple_type, description, variants);
+            return new(simple_type, description, variants);
         }
 
         // Массивы и коллекции
@@ -222,27 +222,27 @@ public partial class GptClient
         {
             var element_type = type.GetElementType()!;
             var items_description = GetComplexTypeDescription(element_type);
-            return new FunctionInfo.TypeDescription("array", description, Items: items_description);
+            return new("array", description, Items: items_description);
         }
 
         // Обработка generic коллекций (IEnumerable<T>, List<T>, и т.д.)
         if (type.IsGenericType)
         {
             var generic_definition = type.GetGenericTypeDefinition();
-            
+
             // Проверка на коллекции
             if (typeof(IEnumerable).IsAssignableFrom(type) && type != typeof(string))
             {
                 var element_type = type.GetGenericArguments()[0];
                 var items_description = GetComplexTypeDescription(element_type);
-                return new FunctionInfo.TypeDescription("array", description, Items: items_description);
+                return new("array", description, Items: items_description);
             }
 
             // Dictionary и подобные
-            if (generic_definition == typeof(Dictionary<,>) || 
+            if (generic_definition == typeof(Dictionary<,>) ||
                 generic_definition == typeof(IDictionary<,>))
             {
-                return new FunctionInfo.TypeDescription("object", description);
+                return new("object", description);
             }
         }
 
@@ -252,8 +252,8 @@ public partial class GptClient
             var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.CanRead && p.GetIndexParameters().Length == 0) // исключаем индексаторы
                 .ToDictionary(
-                    p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? 
-                         p.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ?? 
+                    p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
+                         p.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ??
                          ToSnakeCase(p.Name), // преобразуем в snake_case
                     p =>
                     {
@@ -262,32 +262,32 @@ public partial class GptClient
                     });
 
             var required_properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.CanRead && 
+                .Where(p => p.CanRead &&
                            p.GetIndexParameters().Length == 0 &&
                            !IsOptionalProperty(p))
-                .Select(p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? 
-                            p.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ?? 
+                .Select(p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
+                            p.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ??
                             ToSnakeCase(p.Name))
                 .ToArray();
 
-            return new FunctionInfo.TypeDescription(
-                "object", 
-                description, 
+            return new(
+                "object",
+                description,
                 Properties: properties.Count > 0 ? properties : null,
                 Required: required_properties.Length > 0 ? required_properties : null);
         }
 
         // Структуры - аналогично классам
-        if (type.IsValueType && !type.IsPrimitive && !type.IsEnum && 
-            type != typeof(DateTime) && type != typeof(TimeSpan) && 
-            type != typeof(DateOnly) && type != typeof(TimeOnly) && 
+        if (type.IsValueType && !type.IsPrimitive && !type.IsEnum &&
+            type != typeof(DateTime) && type != typeof(TimeSpan) &&
+            type != typeof(DateOnly) && type != typeof(TimeOnly) &&
             type != typeof(Guid) && type != typeof(decimal))
         {
             var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.CanRead && p.GetIndexParameters().Length == 0)
                 .ToDictionary(
-                    p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? 
-                         p.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ?? 
+                    p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
+                         p.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ??
                          ToSnakeCase(p.Name),
                     p =>
                     {
@@ -296,21 +296,21 @@ public partial class GptClient
                     });
 
             var required_properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.CanRead && 
+                .Where(p => p.CanRead &&
                            p.GetIndexParameters().Length == 0 &&
                            !IsOptionalProperty(p))
-                .Select(p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? 
-                            p.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ?? 
+                .Select(p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
+                            p.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ??
                             ToSnakeCase(p.Name))
                 .ToArray();
 
-            return new FunctionInfo.TypeDescription("object", description, 
+            return new("object", description,
                 Properties: properties.Count > 0 ? properties : null,
                 Required: required_properties.Length > 0 ? required_properties : null);
         }
 
         // Fallback - возвращаем как строку с именем типа
-        return new FunctionInfo.TypeDescription("string", description ?? $"Тип: {type.Name}");
+        return new("string", description ?? $"Тип: {type.Name}");
     }
 
     /// <summary>Определяет, является ли свойство опциональным</summary>
