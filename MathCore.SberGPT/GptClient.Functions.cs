@@ -1,121 +1,29 @@
 ﻿using System.Collections;
 using System.ComponentModel;
 using System.Net.Http.Json;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Unicode;
 
 using MathCore.SberGPT.Attributes;
 using MathCore.SberGPT.Extensions;
+
+using Microsoft.Extensions.Logging;
 
 using static MathCore.SberGPT.GptClient.FunctionInfo;
 using static MathCore.SberGPT.GptClient.ValidationFunctionResult;
 
 namespace MathCore.SberGPT;
 
-/*
-пример запроса валидации функции
-
-curl -L 'https://gigachat.devices.sberbank.ru/api/v1/functions/validate' \
-   -H 'Content-Type: application/json' \
-   -H 'Accept: application/json' \
-   -H 'Authorization: Bearer <TOKEN>' \
-   -d '{
-     "name": "pizza_order",
-     "description": "Функция для заказа пиццы",
-     "parameters": {},
-     "few_shot_examples": [
-       {
-         "request": "Погода в Москве в ближайшие три дня",
-         "params": {}
-       }
-     ],
-     "return_parameters": {}
-   }'
-
-Json-структура тела сообщения запроса 
-{
- "name": "pizza_order",
- "description": "Функция для заказа пиццы",
- "parameters": {},
- "few_shot_examples": [
-   {
-     "request": "Погода в Москве в ближайшие три дня",
-     "params": {}
-   }
- ],
- "return_parameters": {}
-}
-
-few_shot_examples: Объекты с парами запрос пользователя параметры_функции, которые будут служить модели примерами ожидаемого результата.
-
-json-ответа
-{
- "status": 200,
- "message": "Function is valid",
- "json_ai_rules_version": "1.0.5",
- "errors": [
-   {
-     "description": "name is required",
-     "schema_location": "(root)"
-   }
- ],
- "warnings": [
-   {
-     "description": "few_shot_examples are missing",
-     "schema_location": "(root)"
-   }
- ]
-}
-
-пример json-описания функции
-{
-   "name": "weather_forecast",
-   "description": "Возвращает температуру на заданный период",
-   "parameters": {
-       "type": "object",
-       "properties": {
-           "location": {
-               "type": "string",
-               "description": "Местоположение, например, название города"
-           },
-           "format": {
-               "type": "string",
-               "enum": [
-                   "celsius",
-                   "fahrenheit"
-               ],
-               "description": "Единицы измерения температуры"
-           },
-           "num_days": {
-               "type": "integer",
-               "description": "Период, для которого нужно вернуть"
-           }
-       },
-       "required": [
-           "location",
-           "format"
-       ]
-   }
-}
-
- */
-
 public partial class GptClient
 {
-    // https://gigachat.devices.sberbank.ru/api/v1/functions/validate
-
-    public record ValidationFunctionRequest(
-        [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("description")] string Description,
-        [property: JsonPropertyName("parameters")] Dictionary<string, string> Parameters,
-        [property: JsonPropertyName("few_shot_examples")] FunctionExample[] FewShotExamples,
-        [property: JsonPropertyName("return_parameters")] Dictionary<string, string> ReturnParameters
-    );
 
     public record ValidationFunctionResult(
         [property: JsonPropertyName("message")] string Message,
         [property: JsonPropertyName("json_ai_rules_version")] string AIRulesVersion,
-        [property: JsonPropertyName("errors")] IEnumerable<Info> Errors,
-        [property: JsonPropertyName("warnings")] IEnumerable<Info> Warnings
+        [property: JsonPropertyName("errors")] IEnumerable<Info>? Errors,
+        [property: JsonPropertyName("warnings")] IEnumerable<Info>? Warnings
     )
     {
         public record Info(
@@ -123,22 +31,55 @@ public partial class GptClient
             [property: JsonPropertyName("schema_location")] string SchemaLocation
         );
 
-        public bool IsCorrect => !Errors.Any();
+        public bool HasErrors => Errors?.Any() == true;
+
+        public bool HasWarnings => Warnings?.Any() == true;
+
+        public bool IsCorrect => !HasErrors;
     }
 
-    public async Task<ValidationFunctionResult> ValidateFunctionAsync(Delegate function)
+    private static readonly JsonSerializerOptions __ValidateFunctionSerializationOptions = new()
     {
-        var function_info = function.GetJsonScheme();
-        ValidationFunctionRequest request_info = null!; // не реализовано
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic),
+        WriteIndented = false,
+    };
 
-        var response = await Http.PostAsJsonAsync("functions/validate", request_info).ConfigureAwait(false);
-        var result = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<ValidationFunctionResult>(__DefaultOptions)
-            .ConfigureAwait(false);
+    public async Task<ValidationFunctionResult> ValidateFunctionAsync(Delegate Function, CancellationToken Cancel = default)
+    {
+        var function_info = Function.GetJsonScheme();
+        var str_content = JsonSerializer.Serialize(function_info, __ValidateFunctionSerializationOptions);
+        // https://gigachat.devices.sberbank.ru/api/v1/functions/validate
+        var request = new HttpRequestMessage(HttpMethod.Post, "functions/validate")
+        {
+            Content = new StringContent(str_content, null, "application/json") { Headers = { ContentType = new("application/json") } }
+        };
 
-        return result.NotNull("Ошибка получения данных от сервера");
+        var response = await Http.SendAsync(request, Cancel);
+        try
+        {
+            var result = await response
+                .EnsureSuccessStatusCode()
+                .Content
+                .ReadFromJsonAsync<ValidationFunctionResult>(__DefaultOptions, Cancel)
+                .ConfigureAwait(false);
+
+            return result.NotNull("Ошибка получения данных от сервера");
+        }
+        catch (Exception error)
+        {
+            var response_message = await response.Content.ReadAsStringAsync(Cancel).ConfigureAwait(false);
+            _Log.LogError(error, "Ошибка {responseMessage} получения данных от сервера в процессе выполнения валидации функции {function}",
+                response_message,
+                function_info);
+
+            throw new InvalidOperationException("Ошибка получения данных от сервера в процессе валидации функции", error)
+            {
+                Data =
+                {
+                    ["function"] = function_info,
+                }
+            };
+        }
     }
 
     public record FunctionInfo(

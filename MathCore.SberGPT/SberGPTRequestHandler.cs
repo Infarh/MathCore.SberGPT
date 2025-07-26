@@ -3,8 +3,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Unicode;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -30,8 +32,8 @@ public class SberGPTRequestHandler : DelegatingHandler
         _Config = Config;
         _Log = Log;
 
-        _ClientId = _Config["clientId"] ?? Guid.NewGuid().ToString();
-        _UserAgent = ProductInfoHeaderValue.Parse(_Config["userAgent"] ??= "MathCore.SberGPT/1.0");
+        _ClientId = _Config["ClientId"] ?? Guid.NewGuid().ToString();
+        _UserAgent = ProductInfoHeaderValue.Parse(_Config["UserAgent"] ??= "MathCore.SberGPT/1.0");
 
         //InnerHandler ??= new HttpClientHandler
         //{
@@ -40,6 +42,12 @@ public class SberGPTRequestHandler : DelegatingHandler
         //    AutomaticDecompression = DecompressionMethods.All
         //};
     }
+
+    private static readonly JsonSerializerOptions __RequestSerializationOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic),
+    };
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel)
     {
@@ -61,6 +69,25 @@ public class SberGPTRequestHandler : DelegatingHandler
 
         if (request.Headers.UserAgent.Count == 0)
             request.Headers.UserAgent.Add(_UserAgent);
+
+        // Логируем исходящий HTTP-запрос для отладки (Debug)
+        //if (_Log.IsEnabled(LogLevel.Debug))
+        //{
+        //    var content_str = request.Content is not null
+        //        ? await request.Content.ReadAsStringAsync(cancel)
+        //        : null;
+
+        //    var request_info = new
+        //    {
+        //        Method = request.Method.ToString(), // HTTP-метод
+        //        Uri = request.RequestUri?.ToString(), // URI запроса
+        //        Headers = request.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value)), // Заголовки
+        //        Content = content_str // Тело запроса
+        //    };
+
+        //    var request_text = JsonSerializer.Serialize(request_info, __RequestSerializationOptions);
+        //    _Log.LogDebug("Исходящий запрос: {Request}", request_text);
+        //}
 
         var response_message = await base.SendAsync(request, cancel);
 
