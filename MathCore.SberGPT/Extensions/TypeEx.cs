@@ -1,12 +1,16 @@
-﻿using System.Reflection;
+﻿using System.ComponentModel;
+using System.Reflection;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+
+using MathCore.SberGPT.Attributes;
 
 namespace MathCore.SberGPT.Extensions;
 
 public static class TypeEx
 {
     /// <summary>Формирует JSON-схему типа в формате OpenAPI (JSON Schema)</summary>
-    public static JsonNode GetJsonScheme(this Type Type)
+    public static JsonNode GetJsonScheme(this Type Type, bool SetNullable = false)
     {
         var visited_types = new HashSet<Type>(); // Для предотвращения циклических ссылок
 
@@ -21,139 +25,172 @@ public static class TypeEx
             var json_type = t switch
             {
                 { IsEnum: true } => "string",
-                Type _ when t == typeof(string) => "string",
-                Type _ when t == typeof(bool) => "boolean",
-                Type _ when t == typeof(byte) ||
-                            t == typeof(sbyte) ||
-                            t == typeof(short) ||
-                            t == typeof(ushort) ||
-                            t == typeof(int) ||
-                            t == typeof(uint) ||
-                            t == typeof(long) ||
-                            t == typeof(ulong) => "integer",
-                Type _ when t == typeof(float) ||
-                            t == typeof(double) ||
-                            t == typeof(decimal) => "number",
-                Type _ when t == typeof(DateTime) => "string",
-                Type _ when t == typeof(Guid) => "string",
+                not null when t == typeof(string) => "string",
+                not null when t == typeof(bool) => "boolean",
+                not null when t == typeof(byte) ||
+                              t == typeof(sbyte) ||
+                              t == typeof(short) ||
+                              t == typeof(ushort) ||
+                              t == typeof(int) ||
+                              t == typeof(uint) ||
+                              t == typeof(long) ||
+                              t == typeof(ulong) => "integer",
+                not null when t == typeof(float) ||
+                              t == typeof(double) ||
+                              t == typeof(decimal) => "number",
+                not null when t == typeof(DateTime) => "string",
+                not null when t == typeof(Guid) => "string",
                 _ => null
             };
 
-            // Обработка перечислений
-            if (t.IsEnum)
+            switch (t)
             {
-                var enum_array = new JsonArray();
-                foreach (var name in Enum.GetNames(t))
-                    enum_array.Add(name);
-
-                var node = new JsonObject
-                {
-                    ["type"] = json_type,
-                    ["nullable"] = IsNullable,
-                    ["enum"] = enum_array
-                };
-                return node;
-            }
-
-            // Обработка массивов
-            if (t.IsArray)
-            {
-                var node = new JsonObject
-                {
-                    ["type"] = "array",
-                    ["nullable"] = IsNullable,
-                    ["items"] = BuildSchema(t.GetElementType()!)
-                };
-                return node;
-            }
-
-            // Обработка обобщённых типов
-            if (t.IsGenericType)
-            {
-                var generic_type = t.GetGenericTypeDefinition();
-                var type_args = t.GetGenericArguments();
-
-                // Словари
-                if (generic_type == typeof(Dictionary<,>) || generic_type == typeof(IDictionary<,>))
-                {
-                    var node = new JsonObject
+                case { IsEnum: true }:
                     {
-                        ["type"] = "object",
-                        ["nullable"] = IsNullable,
-                        ["additionalProperties"] = BuildSchema(type_args[1])
-                    };
-                    return node;
-                }
+                        var enum_array = new JsonArray();
+                        foreach (var field in t.GetFields(BindingFlags.Public | BindingFlags.Static))
+                        {
+                            var name = field.GetCustomAttribute<GPTAttribute>()?.Name ??
+                                       field.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
+                                       field.Name;
+                            enum_array.Add(name);
+                        }
 
-                // Коллекции
-                if (t.GetInterfaces().Any(i => i.IsGenericType &&
-                    i.GetGenericTypeDefinition() == typeof(IEnumerable<>)))
-                {
-                    var node = new JsonObject
+                        //foreach (var name in Enum.GetNames(t))
+                        //    enum_array.Add(name);
+
+                        var node = new JsonObject
+                        {
+                            ["type"] = json_type,
+                            ["enum"] = enum_array
+                        };
+
+                        if (SetNullable)
+                            node["nullable"] = IsNullable;
+
+                        return node;
+                    }
+
+                case { IsArray: true }:
                     {
-                        ["type"] = "array",
-                        ["nullable"] = IsNullable,
-                        ["items"] = BuildSchema(type_args[0])
-                    };
-                    return node;
-                }
+                        var node = new JsonObject
+                        {
+                            ["type"] = "array",
+                            ["items"] = BuildSchema(t.GetElementType()!)
+                        };
+
+                        if (SetNullable)
+                            node["nullable"] = IsNullable;
+
+                        return node;
+                    }
+
+                case { IsGenericType: true }:
+                    {
+                        var generic_type = t.GetGenericTypeDefinition();
+                        var type_args = t.GetGenericArguments();
+
+                        // Словари
+                        if (generic_type == typeof(Dictionary<,>) || generic_type == typeof(IDictionary<,>))
+                        {
+                            var node = new JsonObject
+                            {
+                                ["type"] = "object",
+                                ["additionalProperties"] = BuildSchema(type_args[1])
+                            };
+
+                            if (SetNullable)
+                                node["nullable"] = IsNullable;
+
+                            return node;
+                        }
+
+                        // Коллекции
+                        if (t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>)))
+                        {
+                            var node = new JsonObject
+                            {
+                                ["type"] = "array",
+                                ["items"] = BuildSchema(type_args[0])
+                            };
+
+                            if (SetNullable)
+                                node["nullable"] = IsNullable;
+
+                            return node;
+                        }
+
+                        break;
+                    }
             }
 
             // Примитивные типы
             if (json_type != null)
             {
                 var node = new JsonObject { ["type"] = json_type };
-                if (IsNullable) node["nullable"] = true;
+                if (IsNullable && SetNullable) node["nullable"] = true;
                 if (t == typeof(DateTime)) node["format"] = "date-time";
                 if (t == typeof(Guid)) node["format"] = "uuid";
                 return node;
             }
 
             // Объекты (классы/структуры)
-            if (visited_types.Contains(t))
+            if (!visited_types.Add(t.NotNull())) // Предотвращение рекурсии
                 return new JsonObject
                 {
                     ["type"] = "object",
-                    ["ref"] = t.Name // Предотвращение рекурсии
+                    ["ref"] = t.NotNull().Name
                 };
 
-            visited_types.Add(t);
-
-            var properties = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            var properties = t.NotNull().GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.CanRead)
                 .ToArray();
 
+            // Исправленная логика определения обязательных свойств
             var required_props = properties
-                .Where(p => !IsNullableType(p.PropertyType))
-                .Select(p => p.Name)
+                .Where(PropertyInfoEx.IsRequiredProperty)
+                .Select(p => p.GetCustomAttribute<GPTAttribute>()?.Name ?? p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? p.Name)
                 .ToArray();
 
             var props_obj = new JsonObject();
             foreach (var p in properties)
-                props_obj[p.Name] = BuildSchema(p.PropertyType, IsNullableType(p.PropertyType));
+            {
+                var property_name = p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? p.Name;
+                var property_scheme = BuildSchema(p.PropertyType, IsNullableType(p.PropertyType));
+
+                if ((string?)property_scheme["type"] == "array" &&
+                    p.GetCustomAttribute<ItemsDescriptionAttribute>() is { Description: { Length: > 0 } item_description } &&
+                    property_scheme["items"] is { } items)
+                    items["description"] = item_description;
+
+                var property_description = p.GetCustomAttribute<DescriptionAttribute>()?.Description;
+                if (property_description is { Length: > 0 })
+                    property_scheme["description"] = property_description;
+                props_obj[property_name] = property_scheme;
+            }
 
             var schema_obj = new JsonObject
             {
                 ["type"] = "object",
-                ["nullable"] = IsNullable,
                 ["properties"] = props_obj
             };
 
-            if (required_props.Length > 0)
-            {
-                var required_array = new JsonArray();
-                foreach (var n in required_props) required_array.Add(n);
-                schema_obj["required"] = required_array;
-            }
+            if (SetNullable)
+                schema_obj["nullable"] = IsNullable;
+
+            if (required_props.Length == 0) return schema_obj;
+
+            var required_array = new JsonArray();
+            foreach (var n in required_props)
+                required_array.Add(n);
+            schema_obj["required"] = required_array;
 
             return schema_obj;
         }
 
-        // Проверка, является ли тип nullable
-        static bool IsNullableType(Type t) =>
-            !t.IsValueType || Nullable.GetUnderlyingType(t) != null;
-
         var root = BuildSchema(Type);
         return root;
+
+        static bool IsNullableType(Type t) => !t.IsValueType || Nullable.GetUnderlyingType(t) != null;
     }
 }
