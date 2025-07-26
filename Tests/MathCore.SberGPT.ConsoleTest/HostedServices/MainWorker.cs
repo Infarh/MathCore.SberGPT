@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Text.Json.Serialization;
 
+using MathCore.Annotations;
 using MathCore.SberGPT.Attributes;
 
 using Microsoft.Extensions.Hosting;
@@ -36,10 +37,15 @@ internal class MainWorker(GptClient gpt) : IHostedService, IDisposable
 
         try
         {
-            var result1 = await gpt.ValidateFunctionAsync(Functions.GetWeather, Cancel);
-            var result2 = await gpt.ValidateFunctionAsync(Functions.GetTripDistance, Cancel);
-            var result3 = await gpt.ValidateFunctionAsync(Functions.SendSMS, Cancel);
-            var result4 = await gpt.ValidateFunctionAsync(Functions.SearchMovies, Cancel);
+            var info1 = await gpt.AddFunctionAsync(Functions.GetWeather, Cancel);
+            var info2 = await gpt.AddFunctionAsync(Functions.GetTripDistance, Cancel);
+            var info3 = await gpt.AddFunctionAsync(Functions.SendSMS, Cancel);
+            var info4 = await gpt.AddFunctionAsync(Functions.SearchMovies, Cancel);
+
+            //var result1 = await gpt.ValidateFunctionAsync(Functions.GetWeather, Cancel);
+            //var result2 = await gpt.ValidateFunctionAsync(Functions.GetTripDistance, Cancel);
+            //var result3 = await gpt.ValidateFunctionAsync(Functions.SendSMS, Cancel);
+            //var result4 = await gpt.ValidateFunctionAsync(Functions.SearchMovies, Cancel);
         }
         catch (Exception error)
         {
@@ -86,7 +92,9 @@ internal static class Functions
 
     internal enum TemperatureUnit
     {
+        [UsedImplicitly]
         [GPT("celsius")] Celsius,
+        [UsedImplicitly]
         [GPT("fahrenheit")] Fahrenheit
     }
 
@@ -100,7 +108,7 @@ internal static class Functions
         [GPT("start_location", "Начальное местоположение")] string StartLocation,
         [GPT("end_location", "Конечное местоположение")] string EndLocation
         )
-        => new(10);
+        => new(635);
 
     public readonly record struct TripDistance(
         [property: JsonPropertyName("distance"), Description("Расстояние между начальным и конечным местоположением в километрах")] int Distance);
@@ -115,7 +123,7 @@ internal static class Functions
     public static SendSMSResult SendSMS(
         [GPT("recipient", "Номер телефона получателя")] string Recipient,
         [GPT("message", "Содержимое сообщения")] string Message)
-        => new("Sent", "Сообщение успешно отправлено");
+        => new("Sent", $"Сообщение {Recipient} успешно отправлено");
 
     public readonly record struct SendSMSResult(
         [property: JsonPropertyName("status"), Description("Статус отправки сообщения")] string Status,

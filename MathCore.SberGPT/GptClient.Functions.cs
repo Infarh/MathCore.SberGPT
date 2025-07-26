@@ -1,8 +1,8 @@
-﻿using System.Collections;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Net.Http.Json;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Unicode;
 
@@ -11,7 +11,6 @@ using MathCore.SberGPT.Extensions;
 
 using Microsoft.Extensions.Logging;
 
-using static MathCore.SberGPT.GptClient.FunctionInfo;
 using static MathCore.SberGPT.GptClient.ValidationFunctionResult;
 
 namespace MathCore.SberGPT;
@@ -47,6 +46,10 @@ public partial class GptClient
     public async Task<ValidationFunctionResult> ValidateFunctionAsync(Delegate Function, CancellationToken Cancel = default)
     {
         var function_info = Function.GetJsonScheme();
+
+        var function_name = function_info["name"]?.GetValue<string>()
+            ?? throw new InvalidOperationException("Не удалось получить имя функции из схемы");
+
         var str_content = JsonSerializer.Serialize(function_info, __ValidateFunctionSerializationOptions);
         // https://gigachat.devices.sberbank.ru/api/v1/functions/validate
         var request = new HttpRequestMessage(HttpMethod.Post, "functions/validate")
@@ -61,9 +64,15 @@ public partial class GptClient
                 .EnsureSuccessStatusCode()
                 .Content
                 .ReadFromJsonAsync<ValidationFunctionResult>(__DefaultOptions, Cancel)
-                .ConfigureAwait(false);
+                .ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Ошибка получения данных от сервера");
 
-            return result.NotNull("Ошибка получения данных от сервера");
+            if (result.IsCorrect)
+                _Log.LogInformation("Функция {function} успешно прошла валидацию: {result}", function_name, result);
+            else
+                _Log.LogInformation("Функция {function} не прошла валидацию: {result}", function_name, result);
+
+            return result;
         }
         catch (Exception error)
         {
@@ -74,50 +83,43 @@ public partial class GptClient
 
             throw new InvalidOperationException("Ошибка получения данных от сервера в процессе валидации функции", error)
             {
-                Data =
-                {
-                    ["function"] = function_info,
-                }
+                Data = { [nameof(Function)] = function_info, }
             };
         }
     }
 
-    public record FunctionInfo(
-        [property: JsonPropertyName("name"), JsonPropertyOrder(0)] string Name,
-        [property: JsonPropertyName("description")]
-        string? Description,
-        [property: JsonPropertyName("parameters")]
-        Dictionary<string, TypeDescription> Parameters,
-        [property: JsonPropertyName("return_type")]
-        TypeDescription ReturnType
-    )
+    public async Task<FunctionInfo> AddFunctionAsync(Delegate Function, CancellationToken Cancel = default)
     {
-        [JsonPropertyName("type"), JsonPropertyOrder(1)]
-        public string ObjectType { get; set; } = "object";
+        var validation_result = await ValidateFunctionAsync(Function, Cancel).ConfigureAwait(false);
+        if (validation_result.HasErrors)
+        {
+            throw new InvalidOperationException($"Функция не прошла валидацию: {validation_result.Message}")
+            {
+                Data =
+                {
+                    [nameof(Function)] = Function.GetJsonScheme(),
+                    [nameof(validation_result)] = validation_result,
+                }
+            };
+        }
 
-        public record TypeDescription(
-            [property: JsonPropertyName("type")] string Type,
-            [property: JsonPropertyName("description")] string? Description = null,
-            [property: JsonPropertyName("enum")] IEnumerable<string>? Variants = null,
-            [property: JsonPropertyName("items")] TypeDescription? Items = null, // для массивов
-            [property: JsonPropertyName("properties")] Dictionary<string, TypeDescription>? Properties = null, // для объектов
-            [property: JsonPropertyName("required")] IEnumerable<string>? Required = null // обязательные свойства для объектов
-        );
+        var function_info = Function.GetJsonScheme();
+
+        var function_name = function_info["name"]?.GetValue<string>()
+            ?? throw new InvalidOperationException("Не удалось получить имя функции из схемы");
+        var function_description = function_info["description"]?.GetValue<string>();
+
+        var info = new FunctionInfo(function_name, function_description, validation_result, Function, function_info);
+        _Functions[function_name] = info;
+
+        _Log.LogInformation("Функция {function}:\"{description}\" добавлена", function_name, function_description);
+
+        return info;
     }
 
-    public class FunctionExample(
-        string Prompt,
-        Dictionary<string, string> Arguments)
-        : IEnumerable<KeyValuePair<string, string>>
-    {
-        public FunctionExample(string Prompt) : this(Prompt, new()) { }
+    private readonly Dictionary<string, FunctionInfo> _Functions = [];
 
-        public void Add(string Arg, string Value) => Arguments[Arg] = Value;
-
-        IEnumerator<KeyValuePair<string, string>> IEnumerable<KeyValuePair<string, string>>.GetEnumerator() => Arguments.GetEnumerator();
-
-        public IEnumerator GetEnumerator() => ((IEnumerable)Arguments).GetEnumerator();
-    }
+    public record FunctionInfo(string Name, string? Description, ValidationFunctionResult Validation, Delegate Function, JsonNode Scheme);
 }
 
 #if DEBUG
