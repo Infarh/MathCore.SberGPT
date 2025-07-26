@@ -3,7 +3,7 @@
 namespace MathCore.SberGPT.Attributes;
 
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Parameter, AllowMultiple = true)]
-public sealed class FunctionPromptExampleAttribute(string Prompt, params string[] ExampleParameter) : Attribute
+public sealed class PromptExampleAttribute(string Prompt, params string[] ExampleParameter) : Attribute
 {
     public string Prompt { get; set; } = Prompt;
 

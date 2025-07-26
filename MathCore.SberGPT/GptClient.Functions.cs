@@ -151,11 +151,11 @@ file class FunctionExamples
 
     [FunctionName("GetTemperature")]
     [FunctionDescription("Получение температуры в заданном месте")]
-    [FunctionPromptExample("Какая температура сейчас в Москве?", "location:Moscow", "time:2025-07-24 23:23:30")]
-    [FunctionPromptExample("Какая погода была в Санкт-Петербурге вчера?", "location:Saint Petersburg", "time:2025-07-23 23:23:30")]
-    [FunctionPromptExample("Сколько градусов было на Эльбрусе три дня назад?", "location:Elbrus", "time:2025-07-21 23:23:30")]
-    [FunctionPromptExample("Узнай температуру в Сочи на прошлой неделе", "location:Sochi", "time:2025-07-17 23:23:30")]
-    [FunctionPromptExample("Проверь, какая температура была в Новосибирске месяц назад", "location:Novosibirsk", "time:2025-06-24 23:23:30")]
+    [PromptExample("Какая температура сейчас в Москве?", "location:Moscow", "time:2025-07-24 23:23:30")]
+    [PromptExample("Какая погода была в Санкт-Петербурге вчера?", "location:Saint Petersburg", "time:2025-07-23 23:23:30")]
+    [PromptExample("Сколько градусов было на Эльбрусе три дня назад?", "location:Elbrus", "time:2025-07-21 23:23:30")]
+    [PromptExample("Узнай температуру в Сочи на прошлой неделе", "location:Sochi", "time:2025-07-17 23:23:30")]
+    [PromptExample("Проверь, какая температура была в Новосибирске месяц назад", "location:Novosibirsk", "time:2025-06-24 23:23:30")]
     public static double GetTemperature(
         [Description("Местоположение для получения температуры")] string location,
         [Description("Дата и время для которых нужно получить температуру")] DateTime time)
@@ -166,11 +166,11 @@ file class FunctionExamples
 
     [FunctionName("GetFiles")]
     [FunctionDescription("Поиск всех файлов в указанной директории")]
-    [FunctionPromptExample("Найди все файлы Excel в папке Documents", "Path:c:\\MyDocuments")]
-    [FunctionPromptExample("Покажи все JSON файлы с результатами тестов", "Path:c:\\MyDocuments", "Mask:*.json", "Recurrent:true")]
-    [FunctionPromptExample("Найди все текстовые файлы где может быть сохранён API ключ", "Path:c:\\MyDocuments", "Mask:*.txt", "Recurrent:true")]
-    [FunctionPromptExample("Ищи все PDF документы в проекте", "Path:c:\\MyDocuments", "Mask:*.pdf", "Recurrent:false")]
-    [FunctionPromptExample("Найди все изображения в формате PNG и JPG", "Path:c:\\MyDocuments", "Mask:*.png;*.jpg", "Recurrent:true")]
+    [PromptExample("Найди все файлы Excel в папке Documents", "Path:c:\\MyDocuments")]
+    [PromptExample("Покажи все JSON файлы с результатами тестов", "Path:c:\\MyDocuments", "Mask:*.json", "Recurrent:true")]
+    [PromptExample("Найди все текстовые файлы где может быть сохранён API ключ", "Path:c:\\MyDocuments", "Mask:*.txt", "Recurrent:true")]
+    [PromptExample("Ищи все PDF документы в проекте", "Path:c:\\MyDocuments", "Mask:*.pdf", "Recurrent:false")]
+    [PromptExample("Найди все изображения в формате PNG и JPG", "Path:c:\\MyDocuments", "Mask:*.png;*.jpg", "Recurrent:true")]
     public static IEnumerable<FileInfo> GetFile(
         [Description("Путь к директории для поиска")] string Path,
         [Description("Маска для фильтрации файлов (например, *.txt, *.json)")] string Mask,
@@ -183,10 +183,10 @@ file class FunctionExamples
 
     [FunctionName("GetFileStringContent")]
     [FunctionDescription("Чтение содержимого текстового файла по указанному пути")]
-    [FunctionPromptExample("Покажи содержимое файла конфигурации config.json", "FilePath:config.json")]
-    [FunctionPromptExample("Прочитай документацию из файла README.md", "FilePath:README.md")]
-    [FunctionPromptExample("Выведи логи из файла application.log", "FilePath:application.log")]
-    [FunctionPromptExample("Открой и покажи код из файла Program.cs", "FilePath:Program.cs")]
+    [PromptExample("Покажи содержимое файла конфигурации config.json", "FilePath:config.json")]
+    [PromptExample("Прочитай документацию из файла README.md", "FilePath:README.md")]
+    [PromptExample("Выведи логи из файла application.log", "FilePath:application.log")]
+    [PromptExample("Открой и покажи код из файла Program.cs", "FilePath:Program.cs")]
     public static string GetFileStringContent(
         [Description("Путь к текстовому файлу для чтения")] string FilePath)
     {
@@ -195,9 +195,9 @@ file class FunctionExamples
 
     [FunctionName("GetBinaryFileContentInBase64")]
     [FunctionDescription("Получение содержимого бинарного файла в виде строки base64 по указанному пути")]
-    [FunctionPromptExample("Преобразуй изображение logo.png в base64", "FilePath:logo.png")]
-    [FunctionPromptExample("Получи содержимое Word документа report.docx в base64", "FilePath:report.docx")]
-    [FunctionPromptExample("Прочитай PDF файл manual.pdf как base64", "FilePath:manual.pdf")]
+    [PromptExample("Преобразуй изображение logo.png в base64", "FilePath:logo.png")]
+    [PromptExample("Получи содержимое Word документа report.docx в base64", "FilePath:report.docx")]
+    [PromptExample("Прочитай PDF файл manual.pdf как base64", "FilePath:manual.pdf")]
     public static string GetBinaryFileContentInBase64(
         [Description("Путь к бинарному файлу для преобразования в base64")] string FilePath)
     {
@@ -206,10 +206,10 @@ file class FunctionExamples
 
     [FunctionName("DeleteFile")]
     [FunctionDescription("Удаление файла по указанному пути")]
-    [FunctionPromptExample("Удали временный файл temp.txt", "FilePath:temp.txt")]
-    [FunctionPromptExample("Очисти старые логи из папки logs", "FilePath:logs")]
-    [FunctionPromptExample("Удали кэш файл cache.dat", "FilePath:cache.dat")]
-    [FunctionPromptExample("Убери дубликат файла backup_old.zip", "FilePath:backup_old.zip")]
+    [PromptExample("Удали временный файл temp.txt", "FilePath:temp.txt")]
+    [PromptExample("Очисти старые логи из папки logs", "FilePath:logs")]
+    [PromptExample("Удали кэш файл cache.dat", "FilePath:cache.dat")]
+    [PromptExample("Убери дубликат файла backup_old.zip", "FilePath:backup_old.zip")]
     public static bool DeleteFile(
         [Description("Путь к файлу для удаления")] string FilePath)
     {

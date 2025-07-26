@@ -56,7 +56,7 @@ public static class DelegateEx
         scheme["return_parameters"] = return_type_json_scheme;
 
         var examples = method
-            .GetCustomAttributes<FunctionPromptExampleAttribute>()
+            .GetCustomAttributes<PromptExampleAttribute>()
             .Select(e => new JsonObject
             {
                 { "request", e.Prompt },

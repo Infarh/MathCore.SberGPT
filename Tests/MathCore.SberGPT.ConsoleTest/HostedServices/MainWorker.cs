@@ -42,10 +42,6 @@ internal class MainWorker(GptClient gpt) : IHostedService, IDisposable
             var info3 = await gpt.AddFunctionAsync(Functions.SendSMS, Cancel);
             var info4 = await gpt.AddFunctionAsync(Functions.SearchMovies, Cancel);
 
-            //var result1 = await gpt.ValidateFunctionAsync(Functions.GetWeather, Cancel);
-            //var result2 = await gpt.ValidateFunctionAsync(Functions.GetTripDistance, Cancel);
-            //var result3 = await gpt.ValidateFunctionAsync(Functions.SendSMS, Cancel);
-            //var result4 = await gpt.ValidateFunctionAsync(Functions.SearchMovies, Cancel);
         }
         catch (Exception error)
         {
@@ -62,7 +58,7 @@ internal static class Functions
     #region weather_forecast
 
     [GPT("weather_forecast", "Возвращает температуру на заданный период")]
-    [FunctionPromptExample("Какая погода в Москве в ближайшие три дня", "location:Moscow, Russia", "format:celsius", "num_days:5")]
+    [PromptExample("Какая погода в Москве в ближайшие три дня", "location:Moscow, Russia", "format:celsius", "num_days:5")]
     public static WeatherForecast? GetWeather(
     [GPT("location", "Местоположение, например, название города")] string Location,
     [GPT("format", "Единицы измерения температуры")] TemperatureUnit? Unit,
@@ -103,7 +99,7 @@ internal static class Functions
     #region calculate_trip_distance
 
     [GPT("calculate_trip_distance", "Рассчитать расстояние между двумя местоположениями")]
-    [FunctionPromptExample("Насколько далеко от Москвы до Санкт-Петербурга?", "start_location:Москва", "end_location:Санкт-Петербург")]
+    [PromptExample("Насколько далеко от Москвы до Санкт-Петербурга?", "start_location:Москва", "end_location:Санкт-Петербург")]
     public static TripDistance GetTripDistance(
         [GPT("start_location", "Начальное местоположение")] string StartLocation,
         [GPT("end_location", "Конечное местоположение")] string EndLocation
@@ -118,7 +114,7 @@ internal static class Functions
     #region send_sms
 
     [GPT("send_sms", "Отправить SMS-сообщение")]
-    [FunctionPromptExample("Можешь ли ты отправить SMS-сообщение на номер 123456789 с содержимым 'Привет, как дела?'",
+    [PromptExample("Можешь ли ты отправить SMS-сообщение на номер 123456789 с содержимым 'Привет, как дела?'",
         "recipient:123456789", "message:Привет, как дела?")]
     public static SendSMSResult SendSMS(
         [GPT("recipient", "Номер телефона получателя")] string Recipient,
@@ -134,7 +130,7 @@ internal static class Functions
     #region search_movies
 
     [GPT("search_movies", "Поиск фильмов на основе заданных критериев")]
-    [FunctionPromptExample("Найди все фильмы жанра комедия", "genre:комедия")]
+    [PromptExample("Найди все фильмы жанра комедия", "genre:комедия")]
     public static MovieSearchResult SearchMovies(
         [GPT("genre", "Жанр фильма")] string? Genre,
         [GPT("year", "Год выпуска фильма")] int? Year,
