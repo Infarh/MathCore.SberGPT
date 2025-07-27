@@ -261,9 +261,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
             var func_invoke_result_json = JsonSerializer.Serialize(func_invoke_result);
 
-            requests.Add(new(func_invoke_result_json, RequestRole.assistant, FunctionStateId: call_id, FunctionCall: function_call));
-
-            requests.Add(new(func_invoke_result_json, RequestRole.function, Name: func_name));
+            requests.AddFunctionCall(func_invoke_result_json, call_id, func_name, function_call);
 
             message = new(
                 Requests: [.. requests],
@@ -326,53 +324,90 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         requests.AddHistory(ChatHistory ?? _ChatHistory);
         requests.AddUser(UserPrompt);
 
-        ModelRequest message = new(
+        var response_message = new StringBuilder();
+        var function_call = true;
+
+        while (function_call)
+        {
+            function_call = false;
+
+            ModelRequest message = new(
             Requests: [.. requests],
             Model: ModelName,
             FunctionSchemes: _Functions.Count > 0
                 ? _Functions.Values.Select(f => f.Scheme)
                 : null)
-        { Streaming = true };
+            { Streaming = true };
 
-        var request = GetRequestMessageJson(HttpMethod.Post, url, message, __DefaultOptions);
+            var request = GetRequestMessageJson(HttpMethod.Post, url, message, __DefaultOptions);
 
-        var response = await Http
-            .SendAsync(request, Cancel)
-            .ConfigureAwait(false);
+            var response = await Http
+                .SendAsync(request, Cancel)
+                .ConfigureAwait(false);
 
-        if (response.StatusCode == HttpStatusCode.BadRequest)
-        {
-            var response_content = await response.Content.ReadAsStringAsync(Cancel);
-            throw new HttpRequestException($"Bad request: {response_content}");
-        }
+            if (response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var response_content = await response.Content.ReadAsStringAsync(Cancel);
+                throw new HttpRequestException($"Bad request: {response_content}");
+            }
 
-        await using var stream = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadAsStreamAsync(Cancel)
-            .ConfigureAwait(false);
+            await using var stream = await response
+                .EnsureSuccessStatusCode()
+                .Content
+                .ReadAsStreamAsync(Cancel)
+                .ConfigureAwait(false);
 
-        var reader = new StreamReader(stream);
+            var reader = new StreamReader(stream);
 
-        var response_message = new StringBuilder();
+            FunctionCallValue? function_call_value = null;
+            Guid? function_call_state_id = null;
 
-        while (await reader.ReadLineAsync(Cancel) is { } line)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
 
-            if (line == "data: [DONE]")
-                break;
+            while (await reader.ReadLineAsync(Cancel) is { } line)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
 
-            if (!line.StartsWith("data: "))
-                continue;
+                if (line == "data: [DONE]")
+                    break;
 
-            var data = line[6..].Replace("\n", Environment.NewLine);
-            var msg = JsonSerializer.Deserialize<StreamingResponseMessage>(data, __DefaultOptions);
+                if (!line.StartsWith("data: "))
+                    continue;
 
-            yield return msg;
+                var data = line[6..].Replace("\n", Environment.NewLine);
+                var msg = JsonSerializer.Deserialize<StreamingResponseMessage>(data, __DefaultOptions);
 
-            response_message.AppendLine(msg.MessageAssistant);
+                var is_msg = true;
+                if (msg.FunctionCall is { } call)
+                {
+                    function_call_value = call;
+                    function_call = true;
+                    is_msg = false;
+                }
+
+                if (msg.FunctionCallStateId is { } call_id)
+                {
+                    function_call_state_id = call_id;
+                    is_msg = false;
+                }
+
+                if (is_msg)
+                    yield return msg;
+
+                response_message.AppendLine(msg.MessageAssistant);
+            }
+
+            if (!function_call) break;
+            var func_name = function_call_value!.Value.Name;
+            var args = function_call_value.Value.Arguments;
+
+            _Log.LogInformation("Модель запросила вызов функции {FunctionName}", func_name);
+            var function = _Functions[func_name];
+            var func_invoke_result = function.Invoke(args);
+
+            var func_invoke_result_json = JsonSerializer.Serialize(func_invoke_result);
+
+            requests.AddFunctionCall(func_invoke_result_json, function_call_state_id!.Value, func_name, function_call_value.Value);
         }
 
         _ChatHistory.AddUser(UserPrompt);
@@ -584,6 +619,10 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         [property: JsonPropertyName("object")] string? CallMethodName
     )
     {
+        public FunctionCallValue? FunctionCall => Choices.FirstOrDefault(s => s.Delta.FunctionCall is not null).Delta.FunctionCall;
+
+        public Guid? FunctionCallStateId => Choices.FirstOrDefault(s => s.Delta.FunctionsStateId is not null).Delta.FunctionsStateId;
+
         /// <summary>Фрагмент потокового ответа модели</summary>
         /// <param name="Delta">Дельта-сообщение с частичным содержимым</param>
         /// <param name="Index">Индекс фрагмента в потоке сообщений</param>
@@ -597,7 +636,12 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
             /// <param name="Role">Роль отправителя сообщения (system, user, assistant, function)</param>
             public readonly record struct DeltaValue(
                 [property: JsonPropertyName("content")] string Content,
-                [property: JsonPropertyName("role")] string Role
+                [property: JsonPropertyName("role")] string Role,
+                [property: JsonPropertyName("created"), JsonConverter(typeof(UnixDateTimeConverter))] DateTime? Created,
+                [property: JsonPropertyName("functions_state_id")] Guid? FunctionsStateId,
+                [property: JsonPropertyName("model")] string? Model,
+                [property: JsonPropertyName("object")] string? Object,
+                [property: JsonPropertyName("function_call")] FunctionCallValue? FunctionCall
             );
         }
 

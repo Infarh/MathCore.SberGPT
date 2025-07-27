@@ -39,10 +39,9 @@ internal class MainWorker(GptClient gpt) : IHostedService, IDisposable
         {
             var info1 = await gpt.AddFunctionAsync(Functions.GetWeather, Cancel);
 
-            var result = await gpt.RequestAsync("Можно ли будет завтра купаться в Москве?", Cancel: Cancel);
+            await gpt.RequestStreamingAsync("Расскажи о погоде на ближайшие три дня в Москве", Cancel: Cancel)
+                .PrintToAsync(Console.Out, Cancel: Cancel);
             //var result = await gpt.RequestAsync("Можно ли будет купаться в Москве завтра?", Cancel: Cancel);
-
-            var assist_messages = result.AssistMessages.ToArray();
         }
         catch (Exception error)
         {
