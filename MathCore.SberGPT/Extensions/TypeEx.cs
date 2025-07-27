@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
@@ -193,4 +194,17 @@ public static class TypeEx
 
         static bool IsNullableType(Type t) => !t.IsValueType || Nullable.GetUnderlyingType(t) != null;
     }
+
+    /// <summary>Получает значение по умолчанию для типа</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static object? GetDefaultValue(this Type Type) => Type.IsValueType ? Activator.CreateInstance(Type) : null;
+
+    /// <summary>Проверяет, является ли тип generic List</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsGenericList(this Type Type) => Type.IsGenericType && Type.GetGenericTypeDefinition() == typeof(List<>);
+
+    /// <summary>Проверяет, является ли тип generic IEnumerable</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsGenericEnumerable(this Type Type) => Type.IsGenericType && Type.GetGenericTypeDefinition() == typeof(IEnumerable<>);
+
 }

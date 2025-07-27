@@ -31,17 +31,18 @@ internal class MainWorker(GptClient gpt) : IHostedService, IDisposable
     {
         await Task.Yield().ConfigureAwait(false);
 
-        //var tokens = await gpt.GetTokensBalanceAsync(Cancel).ConfigureAwait(false);
+        var tokens = await gpt.GetTokensBalanceAsync(Cancel).ConfigureAwait(false);
 
         //var response = await gpt.RequestAsync("Как твои дела?", Cancel: Cancel).ConfigureAwait(false);
 
         try
         {
             var info1 = await gpt.AddFunctionAsync(Functions.GetWeather, Cancel);
-            var info2 = await gpt.AddFunctionAsync(Functions.GetTripDistance, Cancel);
-            var info3 = await gpt.AddFunctionAsync(Functions.SendSMS, Cancel);
-            var info4 = await gpt.AddFunctionAsync(Functions.SearchMovies, Cancel);
 
+            var result = await gpt.RequestAsync("Можно ли будет завтра купаться в Москве?", Cancel: Cancel);
+            //var result = await gpt.RequestAsync("Можно ли будет купаться в Москве завтра?", Cancel: Cancel);
+
+            var assist_messages = result.AssistMessages.ToArray();
         }
         catch (Exception error)
         {
@@ -57,8 +58,8 @@ internal static class Functions
 {
     #region weather_forecast
 
-    [GPT("weather_forecast", "Возвращает температуру на заданный период")]
-    [PromptExample("Какая погода в Москве в ближайшие три дня", "location:Moscow, Russia", "format:celsius", "num_days:5")]
+    [GPT("weather_forecast", "Возвращает погоду на заданный период")]
+    [PromptExample("Какая погода в Москве в ближайшие три дня?", "location:Moscow, Russia", "format:celsius", "num_days:5")]
     public static WeatherForecast? GetWeather(
     [GPT("location", "Местоположение, например, название города")] string Location,
     [GPT("format", "Единицы измерения температуры")] TemperatureUnit? Unit,
@@ -66,7 +67,7 @@ internal static class Functions
     => new()
     {
         Location = Location,
-        Temperature = 25,
+        Temperature = 32,
         Forecast = ["Ясно", "Слабый ветер", "Осадков не ожидается", "Метеоритный дождь"],
         Error = null,
     };

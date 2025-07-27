@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Text.Unicode;
@@ -17,6 +18,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using static MathCore.SberGPT.GptClient.EmbeddingResponse;
 using static MathCore.SberGPT.GptClient.EmbeddingResponse.EmbeddingValue;
 using static MathCore.SberGPT.GptClient.ModelResponse;
+using static MathCore.SberGPT.GptClient.ModelResponse.ChoiceValue.MessageValue;
 using static MathCore.SberGPT.GptClient.StreamingResponseMessage;
 
 namespace MathCore.SberGPT;
@@ -193,7 +195,9 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     #region Запрос модели
 
     /// <summary>Запрос модели</summary>
-    /// <param name="Requests">Набор параметров запроса</param>
+    /// <param name="UserPrompt">Запрос пользователя</param>
+    /// <param name="SystemPrompt">Системный запрос</param>
+    /// <param name="ChatHistory">История запросов</param>
     /// <param name="ModelName">Название модели</param>
     /// <param name="Cancel">Токен отмены асинхронной операции</param>
     /// <returns>Результат</returns>
@@ -222,13 +226,17 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         else if (UseChatHistory && _ChatHistory.Count > 0)
             requests.AddRange(_ChatHistory);
 
-        requests.Add(new(UserPrompt, RequestRole.user));
+        requests.Add(new(UserPrompt));
 
         ModelRequest message = new(
             Requests: [.. requests],
-            Model: ModelName);
+            Model: ModelName,
+            FunctionSchemes: _Functions.Count > 0 ? _Functions.Values.Select(f => f.Scheme) : null
+            );
 
         var request = GetRequestMessageJson(HttpMethod.Post, url, message, __DefaultOptions);
+
+        var str = await request.Content!.ReadAsStringAsync(Cancel);
 
         var response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
@@ -238,6 +246,35 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
             .ReadFromJsonAsync<ModelResponse>(__DefaultOptions, Cancel)
             .ConfigureAwait(false);
 
+        while (response_message.Choices is [{ FinishReason: "function_call", Message: { FunctionCall: { Name: var func_name, Arguments: var args } function_call, FunctionsStateId: var call_id } }, ..])
+        {
+            _Log.LogInformation("Модель запросила вызов функции {FunctionName}", func_name);
+            var function = _Functions[func_name];
+            var func_invoke_result = function.Invoke(args);
+
+            var func_invoke_result_json = JsonSerializer.Serialize(func_invoke_result);
+
+            requests.Add(new(func_invoke_result_json, RequestRole.assistant, FunctionStateId: call_id, FunctionCall: function_call));
+
+            requests.Add(new(func_invoke_result_json, RequestRole.function, Name: func_name));
+
+            message = new(
+                Requests: [.. requests],
+                Model: ModelName,
+                FunctionSchemes: _Functions.Values.Select(f => f.Scheme)
+            );
+
+            request = GetRequestMessageJson(HttpMethod.Post, url, message, __DefaultOptions);
+
+            response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
+
+            response_message = await response
+                .EnsureSuccessStatusCode()
+                .Content
+                .ReadFromJsonAsync<ModelResponse>(__DefaultOptions, Cancel)
+                .ConfigureAwait(false);
+        }
+
         _Log.LogInformation("Успешно получен ответ от модели {ModelType}. Токенов в запросе: {PromptTokens}. Потрачено токенов: {CompletionTokens}. Оплачено токенов {PrecachedPromptTokens} Итого токенов: {TotalTokens}",
             response_message.Model,
             response_message.Usage.PromptTokens,
@@ -245,7 +282,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
             response_message.Usage.PrecachedPromptTokens,
             response_message.Usage.TotalTokens);
 
-        _ChatHistory.Add(Request.User(UserPrompt));
+        _ChatHistory.AddRange(requests);
         _ChatHistory.Add(Request.Assistant(response_message));
 
         return response_message;
@@ -331,7 +368,8 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <param name="FunctionCall">
     /// Определяет режим вызова функций: none, auto<br/>
     /// - <b>none</b> - запрет на вызов любых функций<br/>
-    /// - <b>auto</b> - вызов внутренних функций и, если указано поле functions, то вызов пользовательских функций
+    /// - <b>auto</b> - вызов внутренних функций и, если указано поле functions, то вызов пользовательских функций<br/>
+    /// - объект {"name": "имя_функции"}<br/>
     /// </param>
     /// <param name="Streaming">Использовать потоковую передачу (по умолчанию false)</param>
     /// <param name="UpdateInterval">Интервал в секундах отправки результатов при потоковой передаче</param>
@@ -343,7 +381,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         [property: JsonPropertyName("messages")] Request[] Requests,
         [property: JsonPropertyName("model")] string Model = "GigaChat-2",
         [property: JsonPropertyName("function_call")] string? FunctionCall = "auto",
-        [property: JsonPropertyName("functions")] IEnumerable<FunctionInfo>? Functions = null,
+        [property: JsonPropertyName("functions")] IEnumerable<JsonNode>? FunctionSchemes = null,
         [property: JsonPropertyName("temperature")] double? Temperature = null,
         [property: JsonPropertyName("top_p")] double? TemperatureAlternative = null,
         [property: JsonPropertyName("stream")] bool? Streaming = null,
@@ -356,14 +394,18 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <param name="Content">Текст сообщения</param>
     /// <param name="Role">
     /// Тип рои: system, user, assistant, function<br/>
-    /// - system — системный промпт, который задает роль модели, например, должна модель отвечать как академик или как школьник;<br/>
+    /// - system — системный промт, который задает роль модели, например, должна модель отвечать как академик или как школьник;<br/>
     /// - assistant — ответ модели;<br/>
     /// - user — сообщение пользователя;<br/>
     /// - function — сообщение с результатом работы пользовательской функции. В сообщении с этой ролью передавайте в поле content валидный JSON-объект с результатами работы функции.
     /// </param>
     public readonly record struct Request(
         [property: JsonPropertyName("content"), JsonPropertyOrder(1)] string Content,
-        [property: JsonPropertyName("role"), JsonPropertyOrder(0)] RequestRole Role = RequestRole.user)
+        [property: JsonPropertyName("role"), JsonPropertyOrder(0)] RequestRole Role = RequestRole.user,
+        [property: JsonPropertyName("functions_state_id")] Guid? FunctionStateId = null,
+        [property: JsonPropertyName("function_call")] FunctionCallValue? FunctionCall = null,
+        [property: JsonPropertyName("name")] string? Name = null
+        )
     {
         public static Request User(string Content) => new(Content);
 
@@ -442,33 +484,20 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
             /// Содержимое сообщения, например, результат генерации.<br/>
             /// В сообщениях с ролью function_in_progress содержит информацию о том, сколько времени осталось до завершения работы встроенной функции.
             /// </param>
-            /// <param name="DataForContext">Массив сообщений, описывающих работу встроенных функций</param>
             public readonly record struct MessageValue(
                 [property: JsonPropertyName("role")] string Role,
                 [property: JsonPropertyName("content")] string Content,
-                //[property: JsonPropertyName("created")] int CreatedUnitTime,
-                //[property: JsonPropertyName("functions_state_id")] Guid FunctionsStateId,
-                [property: JsonPropertyName("data_for_context")] IReadOnlyList<MessageValue.DataForContextValue> DataForContext
+                [property: JsonPropertyName("function_call")] MessageValue.FunctionCallValue FunctionCall,
+                [property: JsonPropertyName("functions_state_id")] Guid FunctionsStateId
             )
             {
-                /// <summary>Информация о работе встроенной функции</summary>
-                /// <param name="Content"></param>
-                /// <param name="Role"></param>
-                /// <param name="FunctionCall"></param>
-                public readonly record struct DataForContextValue(
-                    [property: JsonPropertyName("content")] string Content,
-                    [property: JsonPropertyName("role")] string Role,
-                    [property: JsonPropertyName("function_call")] DataForContextValue.FunctionCallValue? FunctionCall
-                )
-                {
-                    /// <summary>Информация о вызове функции</summary>
-                    /// <param name="Name">Название функции</param>
-                    /// <param name="Arguments">Перечень аргументов</param>
-                    public readonly record struct FunctionCallValue(
-                        [property: JsonPropertyName("name")] string Name,
-                        [property: JsonPropertyName("arguments")] IReadOnlyDictionary<string, string> Arguments
-                        );
-                }
+                /// <summary>Информация о вызове функции</summary>
+                /// <param name="Name">Название функции</param>
+                /// <param name="Arguments">Перечень аргументов функции с их значениями</param>
+                public readonly record struct FunctionCallValue(
+                    [property: JsonPropertyName("name")] string Name,
+                    [property: JsonPropertyName("arguments")] JsonObject Arguments
+                );
             }
         }
 

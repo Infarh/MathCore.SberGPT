@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using System.Collections.Frozen;
+using System.ComponentModel;
 using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -67,5 +68,19 @@ public static class DelegateEx
         scheme["few_shot_examples"] = new JsonArray(examples);
 
         return scheme;
+    }
+
+    public static IReadOnlyDictionary<string, string> GetArgsMap(this Delegate Function)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var method = Function.Method;
+
+        foreach (var param in method.GetParameters())
+        {
+            var param_name = param.GetParameterName();
+            result[param.Name!] = param_name;
+        }
+
+        return result.ToFrozenDictionary();
     }
 }
