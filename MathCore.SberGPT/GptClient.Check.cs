@@ -45,7 +45,15 @@ public partial class GptClient
         , [property: JsonPropertyName("ai_intervals")] int[][] Intervals
     )
     {
-        /// <summary>Категория текста.</summary>
-        public enum Class { AI, Human, Mixed }
+        /// <summary>Категория текста, определённая моделью детекции.</summary>
+        public enum Class
+        {
+            /// <summary>Текст сгенерирован ИИ.</summary>
+            AI,
+            /// <summary>Текст написан человеком.</summary>
+            Human,
+            /// <summary>Текст содержит признаки как ИИ, так и человека.</summary>
+            Mixed
+        }
     }
 }
