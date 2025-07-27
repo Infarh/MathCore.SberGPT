@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -119,7 +120,31 @@ public partial class GptClient
 
     private readonly Dictionary<string, FunctionInfo> _Functions = [];
 
-    public record FunctionInfo(string Name, string? Description, ValidationFunctionResult Validation, Delegate Function, JsonNode Scheme);
+    public record FunctionInfo(
+        string Name,
+        string? Description,
+        ValidationFunctionResult Validation,
+        Delegate Function,
+        JsonNode Scheme)
+    {
+        public override string ToString()
+        {
+            var str = new StringBuilder(Name);
+            if (Description is { Length: > 0 } description)
+                str.Append(':').Append('"').Append(description).Append('"');
+
+
+            if (!Validation.HasErrors)
+                str.Append(" Valid");
+            else
+                str.Append(" Invalid: ").AppendJoin(", ", Validation.Errors!.Select(e => e.Description));
+
+            if (Validation.HasWarnings)
+                str.Append(" (Warnings: ").AppendJoin(", ", Validation.Warnings!.Select(w => w.Description)).Append(')');
+
+            return str.ToString().Trim();
+        }
+    }
 }
 
 #if DEBUG
