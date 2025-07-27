@@ -20,6 +20,9 @@ using static MathCore.SberGPT.GptClient.EmbeddingResponse.EmbeddingValue;
 using static MathCore.SberGPT.GptClient.ModelResponse;
 using static MathCore.SberGPT.GptClient.ModelResponse.ChoiceValue.MessageValue;
 using static MathCore.SberGPT.GptClient.StreamingResponseMessage;
+// ReSharper disable UnusedAutoPropertyAccessor.Global
+// ReSharper disable UnusedMember.Global
+// ReSharper disable MemberCanBePrivate.Global
 
 namespace MathCore.SberGPT;
 
@@ -66,10 +69,13 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <summary>Системный запрос</summary>
     public string? SystemPrompt { get; set; }
 
+    /// <summary>История запросов и ответов в текущей сессии чата</summary>
     private readonly List<Request> _ChatHistory = [];
 
+    /// <summary>Получить список всех запросов в истории чата в режиме только для чтения</summary>
     public IReadOnlyList<Request> Requests => _ChatHistory.AsReadOnly();
 
+    /// <summary>Определяет, использовать ли историю чата при отправке запросов к модели</summary>
     public bool UseChatHistory { get; set; } = true;
 
     /// <summary>Содержимое заголовка X-Session-Id</summary>
@@ -142,21 +148,28 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         return tokens[0];
     }
 
+    /// <summary>Информация о количестве токенов и символов для набора входных строк</summary>
+    /// <param name="Counts">Список информации о количестве токенов и символов для каждой строки</param>
     public readonly record struct TokensCountInfo(IReadOnlyList<TokensCount> Counts) : IReadOnlyList<TokensCount>
     {
+        /// <summary>Неявное преобразование массива в TokensCountInfo</summary>
         public static implicit operator TokensCountInfo(TokensCount[] list) => new(list);
 
+        /// <summary>Общее количество токенов для всех строк</summary>
         [JsonIgnore] public int Tokens => Counts.Sum(c => c.Tokens);
+        /// <summary>Общее количество символов для всех строк</summary>
         [JsonIgnore] public int Characters => Counts.Sum(c => c.Characters);
 
-        [JsonIgnore] public string Input => Counts.Aggregate(new StringBuilder(), (S, s) => S.AppendLine(s.Input), s => s.Length == 0 ? string.Empty : s.ToString(0, s.Length - Environment.NewLine.Length));
+        /// <summary>Объединённый текст всех входных строк</summary>
+        [JsonIgnore] public string Input => Counts.Aggregate(new StringBuilder(), (s, c) => s.AppendLine(c.Input), s => s.Length == 0 ? string.Empty : s.ToString(0, s.Length - Environment.NewLine.Length));
 
+        /// <inheritdoc/>
         IEnumerator<TokensCount> IEnumerable<TokensCount>.GetEnumerator() => Counts.GetEnumerator();
-
+        /// <inheritdoc/>
         IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)Counts).GetEnumerator();
-
+        /// <inheritdoc/>
         int IReadOnlyCollection<TokensCount>.Count => Counts.Count;
-
+        /// <inheritdoc/>
         public TokensCount this[int index] => Counts[index];
     }
 
@@ -218,25 +231,19 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
         List<Request> requests = [];
 
-        if ((SystemPrompt ?? this.SystemPrompt) is { Length: > 0 } system_prompt)
-            requests.Add(new(system_prompt, RequestRole.system));
-
-        if (ChatHistory is not null)
-            requests.AddRange(ChatHistory);
-        else if (UseChatHistory && _ChatHistory.Count > 0)
-            requests.AddRange(_ChatHistory);
-
-        requests.Add(new(UserPrompt));
+        requests.AddSystem(SystemPrompt ?? this.SystemPrompt);
+        requests.AddHistory(ChatHistory ?? _ChatHistory);
+        requests.AddUser(UserPrompt);
 
         ModelRequest message = new(
             Requests: [.. requests],
             Model: ModelName,
-            FunctionSchemes: _Functions.Count > 0 ? _Functions.Values.Select(f => f.Scheme) : null
+            FunctionSchemes: _Functions.Count > 0
+                ? _Functions.Values.Select(f => f.Scheme)
+                : null
             );
 
         var request = GetRequestMessageJson(HttpMethod.Post, url, message, __DefaultOptions);
-
-        var str = await request.Content!.ReadAsStringAsync(Cancel);
 
         var response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
@@ -288,6 +295,16 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         return response_message;
     }
 
+    /// <summary>Асинхронно выполняет потоковый запрос к модели с возможностью получения частичных ответов</summary>
+    /// <param name="UserPrompt">Запрос пользователя для отправки модели</param>
+    /// <param name="SystemPrompt">Системный промпт для задания роли модели (опционально)</param>
+    /// <param name="ChatHistory">История предыдущих сообщений в чате (опционально)</param>
+    /// <param name="ModelName">Название используемой модели (по умолчанию "GigaChat-2")</param>
+    /// <param name="Cancel">Токен отмены асинхронной операции</param>
+    /// <returns>Асинхронный поток сообщений <see cref="StreamingResponseMessage"/> от модели</returns>
+    /// <exception cref="ArgumentNullException">Возникает, если <paramref name="UserPrompt"/> равен null</exception>
+    /// <exception cref="ArgumentException">Возникает, если <paramref name="UserPrompt"/> является пустой строкой</exception>
+    /// <exception cref="HttpRequestException">Возникает при ошибках HTTP-запроса</exception>
     public async IAsyncEnumerable<StreamingResponseMessage> RequestStreamingAsync(
        string UserPrompt,
        string? SystemPrompt = null,
@@ -305,17 +322,17 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
 
         List<Request> requests = [];
 
-        if ((SystemPrompt ?? this.SystemPrompt) is { Length: > 0 } system_prompt)
-            requests.Add(new(system_prompt, RequestRole.system));
+        requests.AddSystem(SystemPrompt ?? this.SystemPrompt);
+        requests.AddHistory(ChatHistory ?? _ChatHistory);
+        requests.AddUser(UserPrompt);
 
-        if (ChatHistory is not null)
-            requests.AddRange(ChatHistory);
-        else if (UseChatHistory && _ChatHistory.Count > 0)
-            requests.AddRange(_ChatHistory);
-
-        requests.Add(new(UserPrompt, RequestRole.user));
-
-        ModelRequest message = new([.. requests], ModelName) { Streaming = true };
+        ModelRequest message = new(
+            Requests: [.. requests],
+            Model: ModelName,
+            FunctionSchemes: _Functions.Count > 0
+                ? _Functions.Values.Select(f => f.Scheme)
+                : null)
+        { Streaming = true };
 
         var request = GetRequestMessageJson(HttpMethod.Post, url, message, __DefaultOptions);
 
@@ -358,8 +375,8 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
             response_message.AppendLine(msg.MessageAssistant);
         }
 
-        _ChatHistory.Add(Request.User(UserPrompt));
-        _ChatHistory.Add(Request.Assistant(response_message.ToString()));
+        _ChatHistory.AddUser(UserPrompt);
+        _ChatHistory.AddAssistant(response_message.ToString());
     }
 
     /// <summary>Сообщение запроса к модели</summary>
@@ -371,6 +388,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// - <b>auto</b> - вызов внутренних функций и, если указано поле functions, то вызов пользовательских функций<br/>
     /// - объект {"name": "имя_функции"}<br/>
     /// </param>
+    /// <param name="FunctionSchemes">Список схем функций, доступных модели для вызова</param>
     /// <param name="Streaming">Использовать потоковую передачу (по умолчанию false)</param>
     /// <param name="UpdateInterval">Интервал в секундах отправки результатов при потоковой передаче</param>
     /// <param name="Temperature">Величина температуры. Должна быть больше 0. Чем выше значение, тем более случайным будет ответ.</param>
@@ -407,12 +425,24 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         [property: JsonPropertyName("name")] string? Name = null
         )
     {
+        /// <summary>Создаёт запрос пользователя с текстовым содержимым</summary>
+        /// <param name="Content">Текст сообщения пользователя</param>
+        /// <returns>Объект запроса с ролью пользователя</returns>
         public static Request User(string Content) => new(Content);
 
+        /// <summary>Создаёт запрос ассистента с текстовым содержимым</summary>
+        /// <param name="Content">Текст ответа ассистента</param>
+        /// <returns>Объект запроса с ролью ассистента</returns>
         public static Request Assistant(string Content) => new(Content, RequestRole.assistant);
 
+        /// <summary>Создаёт системный запрос для задания роли модели</summary>
+        /// <param name="Content">Текст системного промпта</param>
+        /// <returns>Объект запроса с системной ролью</returns>
         public static Request System(string Content) => new(Content, RequestRole.system);
 
+        /// <summary>Создаёт запрос с результатом работы функции</summary>
+        /// <param name="Content">JSON-объект с результатами выполнения функции</param>
+        /// <returns>Объект запроса с ролью функции</returns>
         public static Request Function(string Content) => new(Content, RequestRole.function);
 
         /// <summary>Оператор неявного преобразования кортежа, содержащего текст запроса и роль в объект запроса</summary>
@@ -501,7 +531,11 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
             }
         }
 
-        /// <summary></summary>
+        /// <summary>Информация об использовании токенов модели</summary>
+        /// <param name="PromptTokens">Количество токенов в промпте запроса</param>
+        /// <param name="CompletionTokens">Количество токенов в ответе модели</param>
+        /// <param name="PrecachedPromptTokens">Количество предварительно кэшированных токенов промпта</param>
+        /// <param name="TotalTokens">Общее количество использованных токенов</param>
         public readonly record struct UsageValue(
             [property: JsonPropertyName("prompt_tokens")] int PromptTokens,
             [property: JsonPropertyName("completion_tokens")] int CompletionTokens,
@@ -538,6 +572,11 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <summary>Настройка процесса json-сериализации</summary>
     private static readonly JsonSerializerOptions __DefaultOptions = new(GptClientJsonSerializationContext.Default.Options) { Encoder = JavaScriptEncoder.Create(UnicodeRanges.Cyrillic, UnicodeRanges.BasicLatin), };
 
+    /// <summary>Сообщение потокового ответа от модели</summary>
+    /// <param name="Choices">Список фрагментов ответа модели</param>
+    /// <param name="CreatedUnixTime">Время создания ответа в Unix timestamp</param>
+    /// <param name="Model">Название модели, сгенерировавшей ответ</param>
+    /// <param name="CallMethodName">Название вызываемого метода API</param>
     public readonly record struct StreamingResponseMessage(
         [property: JsonPropertyName("choices")] IReadOnlyList<StreamingChoiceValue> Choices,
         [property: JsonPropertyName("created")] int CreatedUnixTime,
@@ -545,19 +584,27 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         [property: JsonPropertyName("object")] string? CallMethodName
     )
     {
+        /// <summary>Фрагмент потокового ответа модели</summary>
+        /// <param name="Delta">Дельта-сообщение с частичным содержимым</param>
+        /// <param name="Index">Индекс фрагмента в потоке сообщений</param>
         public readonly record struct StreamingChoiceValue(
             [property: JsonPropertyName("delta")] StreamingChoiceValue.DeltaValue Delta,
             [property: JsonPropertyName("index")] int Index
         )
         {
+            /// <summary>Дельта-содержимое потокового сообщения</summary>
+            /// <param name="Content">Частичное текстовое содержимое сообщения</param>
+            /// <param name="Role">Роль отправителя сообщения (system, user, assistant, function)</param>
             public readonly record struct DeltaValue(
                 [property: JsonPropertyName("content")] string Content,
                 [property: JsonPropertyName("role")] string Role
             );
         }
 
+        /// <summary>Объединенное сообщение из всех фрагментов контента</summary>
         public string Message => string.Concat(Choices.Select(c => c.Delta.Content));
 
+        /// <summary>Объединенное сообщение только от ассистента из всех фрагментов контента</summary>
         public string MessageAssistant => string.Concat(Choices.Where(c => c.Delta.Role == "assistant").Select(c => c.Delta.Content));
     }
 
@@ -741,27 +788,40 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         [property: JsonPropertyName("input")] IEnumerable<string> Input
     );
 
+    /// <summary>Модели для векторизации текста</summary>
     public enum EmbeddingModel
     {
+        /// <summary>Стандартная модель векторизации</summary>
         Embeddings,
+        /// <summary>Модель векторизации GigaR</summary>
         EmbeddingsGigaR
     }
 
+    /// <summary>Ответ сервера с информацией о векторизации текста</summary>
+    /// <param name="ListIdStr">Идентификатор объекта списка</param>
+    /// <param name="Values">Массив векторных представлений входных текстов</param>
     public readonly record struct EmbeddingResponse(
         [property: JsonPropertyName("object")] string ListIdStr,
         [property: JsonPropertyName("data")] EmbeddingValue[] Values
     )
     {
+        /// <summary>Векторное представление входного текста</summary>
+        /// <param name="EmbeddingStr">Тип объекта векторизации</param>
+        /// <param name="Embedding">Массив векторных значений для входного текста</param>
+        /// <param name="Index">Индекс элемента в массиве векторизации</param>
+        /// <param name="Usage">Информация об использовании токенов при векторизации</param>
         public readonly record struct EmbeddingValue(
             [property: JsonPropertyName("object")] string EmbeddingStr,
-            [property: JsonPropertyName("embedding")]
-            double[] Embedding,
+            [property: JsonPropertyName("embedding")] double[] Embedding,
             [property: JsonPropertyName("index")] int Index,
             [property: JsonPropertyName("usage")] UsageInfo Usage
         )
         {
+            /// <summary>Информация об использовании токенов для векторизации</summary>
+            /// <param name="Tokens">Количество токенов, использованных для обработки входного текста</param>
             public readonly record struct UsageInfo([property: JsonPropertyName("prompt_tokens")] int Tokens);
 
+            /// <summary>Количество токенов, использованных для векторизации</summary>
             public int Tokens => Usage.Tokens;
         }
     }
@@ -772,7 +832,10 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// <param name="Model">Модель</param>
     /// <param name="Cancel">Отмена операции</param>
     /// <returns>Результат векторизации текста</returns>
-    public async Task<EmbeddingResponse> GetEmbeddingsAsync(IEnumerable<string> MessageStrings, EmbeddingModel Model = EmbeddingModel.Embeddings, CancellationToken Cancel = default)
+    public async Task<EmbeddingResponse> GetEmbeddingsAsync(
+        IEnumerable<string> MessageStrings,
+        EmbeddingModel Model = EmbeddingModel.Embeddings,
+        CancellationToken Cancel = default)
     {
         const string url = "embeddings";
 
