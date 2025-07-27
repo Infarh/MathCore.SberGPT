@@ -20,6 +20,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathCore.SberGPT.Tests", "Tests\MathCore.SberGPT.Tests\MathCore.SberGPT.Tests.csproj", "{AF3152FC-F7D3-4F24-84ED-0899C119D513}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{6D996AE4-9656-EC8B-AAFE-06B1313C7F8C}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\publish.yml = .github\workflows\publish.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
