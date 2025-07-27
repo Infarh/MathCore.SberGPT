@@ -2,9 +2,10 @@
 
 namespace MathCore.SberGPT.Extensions;
 
+/// <summary>Статический класс-расширение для PropertyInfo.</summary>
 internal static class PropertyInfoEx
 {
-    /// <summary>Определяет, является ли свойство обязательным для JSON Schema</summary>
+    /// <summary>Определяет, является ли свойство обязательным для JSON Schema.</summary>
     public static bool IsRequiredProperty(this PropertyInfo property)
     {
         var type = property.PropertyType;

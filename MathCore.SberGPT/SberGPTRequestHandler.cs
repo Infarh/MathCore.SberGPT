@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MathCore.SberGPT;
 
+/// <summary>Обработчик HTTP-запросов для клиента SberGPT с поддержкой авторизации и трассировки</summary>
 public class SberGPTRequestHandler : DelegatingHandler
 {
     /// <summary>Уникальный идентификатор запросов от данного экземпляра клиента для трассировки запросов</summary>
@@ -22,11 +23,18 @@ public class SberGPTRequestHandler : DelegatingHandler
     /// <summary>Токен доступа</summary>
     private AccessToken? _AccessToken;
 
+    /// <summary>Конфигурация клиента</summary>
     private readonly IConfiguration _Config;
+    /// <summary>Логгер для вывода диагностической информации</summary>
     private readonly ILogger _Log;
+    /// <summary>Идентификатор клиента</summary>
     private readonly string _ClientId;
+    /// <summary>Значение заголовка User-Agent</summary>
     private readonly ProductInfoHeaderValue _UserAgent;
 
+    /// <summary>Инициализация нового экземпляра <see cref="SberGPTRequestHandler"/></summary>
+    /// <param name="Config">Конфигурация клиента</param>
+    /// <param name="Log">Логгер</param>
     public SberGPTRequestHandler(IConfiguration Config, ILogger Log)
     {
         _Config = Config;
@@ -43,12 +51,17 @@ public class SberGPTRequestHandler : DelegatingHandler
         //};
     }
 
+    /// <summary>Опции сериализации JSON для отладки</summary>
     private static readonly JsonSerializerOptions __RequestSerializationOptions = new()
     {
         WriteIndented = true,
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic),
     };
 
+    /// <summary>Выполняет отправку HTTP-запроса с автоматическим управлением токеном доступа</summary>
+    /// <param name="request">HTTP-запрос</param>
+    /// <param name="cancel">Токен отмены</param>
+    /// <returns>HTTP-ответ</returns>
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel)
     {
         if (_AccessToken is not { Expired: false } access_token)
@@ -94,8 +107,12 @@ public class SberGPTRequestHandler : DelegatingHandler
         return response_message;
     }
 
+    /// <summary>Стандартная область авторизации</summary>
     private const string __DefaultScope = "GIGACHAT_API_PERS";
 
+    /// <summary>Выполняет получение токена доступа с возможностью кэширования и шифрования</summary>
+    /// <param name="Cancel">Токен отмены</param>
+    /// <returns>Токен доступа</returns>
     [SuppressMessage("ReSharper", "SettingNotFoundInConfiguration")]
     private async Task<AccessToken> GetAccessToken(CancellationToken Cancel)
     {
@@ -222,15 +239,23 @@ public class SberGPTRequestHandler : DelegatingHandler
         }
     }
 
+    /// <summary>Структура ответа на запрос токена доступа</summary>
+    /// <param name="AccessToken">Строка токена</param>
+    /// <param name="ExpiresAt">Время истечения срока действия (Unix-время)</param>
     private readonly record struct GetAccessTokenResponse(
         [property: JsonPropertyName("access_token")]
         string AccessToken,
         [property: JsonPropertyName("expires_at")]
         long ExpiresAt)
     {
+        /// <summary>Неявное преобразование к <see cref="AccessToken"/></summary>
+        /// <param name="response">Ответ сервера</param>
         public static implicit operator AccessToken(GetAccessTokenResponse response) =>
             new(response.AccessToken, TimeFromUnixTime(response.ExpiresAt));
 
+        /// <summary>Преобразование Unix-времени в <see cref="DateTime"/></summary>
+        /// <param name="UnixSecondsFrom1970">Unix-время в миллисекундах</param>
+        /// <returns>Дата и время</returns>
         private static DateTime TimeFromUnixTime(long UnixSecondsFrom1970) => DateTime.UnixEpoch.AddSeconds(UnixSecondsFrom1970 / 1000d);
     }
 }

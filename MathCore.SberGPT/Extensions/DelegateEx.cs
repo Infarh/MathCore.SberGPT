@@ -11,8 +11,10 @@ using MathCore.SberGPT.Attributes;
 
 namespace MathCore.SberGPT.Extensions;
 
+/// <summary>Статический класс-расширение для делегатов.</summary>
 public static class DelegateEx
 {
+    /// <summary>Формирует JSON-схему для делегата.</summary>
     public static JsonNode GetJsonScheme(this Delegate function)
     {
         var json_opt = new JsonSerializerOptions()
@@ -70,6 +72,7 @@ public static class DelegateEx
         return scheme;
     }
 
+    /// <summary>Возвращает карту аргументов метода делегата.</summary>
     public static IReadOnlyDictionary<string, string> GetArgsMap(this Delegate Function)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

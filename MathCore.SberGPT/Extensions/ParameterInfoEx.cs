@@ -5,9 +5,10 @@ using MathCore.SberGPT.Attributes;
 
 namespace MathCore.SberGPT.Extensions;
 
+/// <summary>Статический класс-расширение для ParameterInfo.</summary>
 internal static class ParameterInfoEx
 {
-    /// <summary>Определяет, является ли параметр обязательным для JSON Schema</summary>
+    /// <summary>Определяет, является ли параметр обязательным для JSON Schema.</summary>
     public static bool IsRequiredParameter(this ParameterInfo parameter)
     {
         if (parameter.IsOptional) return false;
@@ -36,6 +37,7 @@ internal static class ParameterInfoEx
         }
     }
 
+    /// <summary>Возвращает имя параметра для JSON Schema.</summary>
     public static string GetParameterName(this ParameterInfo parameter)
     {
         var gpt = parameter.GetCustomAttribute<GPTAttribute>();
@@ -45,6 +47,7 @@ internal static class ParameterInfoEx
         return param_name.NotNull();
     }
 
+    /// <summary>Возвращает имя и описание параметра для JSON Schema.</summary>
     public static (string Name, string? Description) GetParameterNameDescription(this ParameterInfo parameter)
     {
         var gpt = parameter.GetCustomAttribute<GPTAttribute>();

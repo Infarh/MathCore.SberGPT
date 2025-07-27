@@ -5,6 +5,7 @@ using static MathCore.SberGPT.GptClient.CheckTextToAIGenerationResponse;
 
 namespace MathCore.SberGPT;
 
+/// <summary>Клиент для проверки текста на генерацию ИИ.</summary>
 public partial class GptClient
 {
     /// <summary>Проверяет предоставленный текст на предмет генерации ИИ с использованием указанной модели детекции.</summary>
@@ -30,11 +31,13 @@ public partial class GptClient
         return result;
     }
 
+    /// <summary>Запрос на проверку текста.</summary>
     public readonly record struct CheckTextToAIGenerationRequest(
         [property: JsonPropertyName("input")] string Test,
         [property: JsonPropertyName("model")] string Model
     );
 
+    /// <summary>Ответ на проверку текста.</summary>
     public readonly record struct CheckTextToAIGenerationResponse(
         [property: JsonPropertyName("category")] Class Test
         , [property: JsonPropertyName("characters")] int TextLength
@@ -42,11 +45,7 @@ public partial class GptClient
         , [property: JsonPropertyName("ai_intervals")] int[][] Intervals
     )
     {
-        public enum Class
-        {
-            AI,
-            Human,
-            Mixed
-        }
+        /// <summary>Категория текста.</summary>
+        public enum Class { AI, Human, Mixed }
     }
 }

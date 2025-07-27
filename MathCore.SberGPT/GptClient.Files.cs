@@ -26,11 +26,13 @@ public partial class GptClient
         , [property: JsonPropertyName("access_policy")] AccessPolicy AccessPolicy
     );
 
+    /// <summary>Информация о загружаемом файле</summary>
     public readonly record struct FileUploadInfo(
         [property: JsonPropertyName("file")] string FileName,
         [property: JsonPropertyName("purpose")] string Purpose
     );
 
+    /// <summary>Информация об удалении файла</summary>
     public readonly record struct FileDeleteInfo(
         [property: JsonPropertyName("id")] Guid Id
         , [property: JsonPropertyName("deleted")] bool Deleted
@@ -71,7 +73,7 @@ public partial class GptClient
         }
         catch (InvalidOperationException ex)
         {
-            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync(Cancel).ConfigureAwait(false);
             _Log.LogError(ex, "Ошибка при получении файлов: {Message}", content);
 
             throw;
@@ -118,6 +120,10 @@ public partial class GptClient
         return file_info;
     }
 
+    /// <summary>Получить информацию о файле</summary>
+    /// <param name="Id">Идентификатор файла</param>
+    /// <param name="Cancel">Отмена операции</param>
+    /// <returns>Информация о файле</returns>
     public async Task<FileDescription> GetFileInfoAsync(Guid Id, CancellationToken Cancel = default)
     {
         const string url = "files";
@@ -140,6 +146,10 @@ public partial class GptClient
         return file_info;
     }
 
+    /// <summary>Скачать файл в поток</summary>
+    /// <param name="FileId">Идентификатор файла</param>
+    /// <param name="DataStream">Поток для записи данных</param>
+    /// <param name="Cancel">Отмена операции</param>
     public async Task DownloadFileAsync(
         Guid FileId,
         Stream DataStream,
@@ -177,6 +187,10 @@ public partial class GptClient
         await response.CopyToAsync(DataStream, Cancel).ConfigureAwait(false);
     }
 
+    /// <summary>Удалить файл из хранилища</summary>
+    /// <param name="Id">Идентификатор файла</param>
+    /// <param name="Cancel">Отмена операции</param>
+    /// <returns>Информация об удалении файла</returns>
     public async Task<FileDeleteInfo> DeleteFileAsync(Guid Id, CancellationToken Cancel = default)
     {
         const string url = "files";

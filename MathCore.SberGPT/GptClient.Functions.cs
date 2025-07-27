@@ -14,9 +14,10 @@ using static MathCore.SberGPT.GptClient.ValidationFunctionResult;
 
 namespace MathCore.SberGPT;
 
+/// <summary>Клиент для работы с Gpt и функциями</summary>
 public partial class GptClient
 {
-
+    /// <summary>Результат валидации функции</summary>
     public record ValidationFunctionResult(
         [property: JsonPropertyName("message")] string Message,
         [property: JsonPropertyName("json_ai_rules_version")] string AIRulesVersion,
@@ -24,24 +25,34 @@ public partial class GptClient
         [property: JsonPropertyName("warnings")] IEnumerable<Info>? Warnings
     )
     {
+        /// <summary>Информация об ошибке или предупреждении</summary>
         public record Info(
             [property: JsonPropertyName("description")] string Description,
             [property: JsonPropertyName("schema_location")] string SchemaLocation
         );
 
+        /// <summary>Признак наличия ошибок валидации</summary>
         public bool HasErrors => Errors?.Any() == true;
 
+        /// <summary>Признак наличия предупреждений валидации</summary>
         public bool HasWarnings => Warnings?.Any() == true;
 
+        /// <summary>Признак успешной валидации (отсутствие ошибок)</summary>
         public bool IsCorrect => !HasErrors;
     }
 
+    /// <summary>Опции сериализации для валидации функций</summary>
     private static readonly JsonSerializerOptions __ValidateFunctionSerializationOptions = new()
     {
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic),
         WriteIndented = false,
     };
 
+    /// <summary>Выполняет валидацию делегата-функции</summary>
+    /// <param name="Function">Делегат функции</param>
+    /// <param name="Cancel">Токен отмены</param>
+    /// <returns>Результат валидации</returns>
+    /// <exception cref="InvalidOperationException">Ошибка получения имени функции или данных от сервера</exception>
     public async Task<ValidationFunctionResult> ValidateFunctionAsync(Delegate Function, CancellationToken Cancel = default)
     {
         var function_info = Function.GetJsonScheme();
@@ -87,6 +98,11 @@ public partial class GptClient
         }
     }
 
+    /// <summary>Добавляет функцию в клиент после успешной валидации</summary>
+    /// <param name="Function">Делегат функции</param>
+    /// <param name="Cancel">Токен отмены</param>
+    /// <returns>Информация о добавленной функции</returns>
+    /// <exception cref="InvalidOperationException">Функция не прошла валидацию</exception>
     public async Task<FunctionInfo> AddFunctionAsync(Delegate Function, CancellationToken Cancel = default)
     {
         var validation_result = await ValidateFunctionAsync(Function, Cancel).ConfigureAwait(false);
@@ -118,8 +134,10 @@ public partial class GptClient
         return info;
     }
 
+    /// <summary>Словарь зарегистрированных функций</summary>
     private readonly Dictionary<string, FunctionInfo> _Functions = [];
 
+    /// <summary>Информация о функции, зарегистрированной в клиенте</summary>
     public record FunctionInfo(
         string Name,
         string? Description,
@@ -128,6 +146,9 @@ public partial class GptClient
         JsonNode Scheme,
         IReadOnlyDictionary<string, string> ArgsMap)
     {
+        /// <summary>Выполняет вызов функции с аргументами из JsonObject</summary>
+        /// <param name="Args">Аргументы функции</param>
+        /// <returns>Результат выполнения функции</returns>
         public object? Invoke(JsonObject Args)
         {
             IDictionary<string, JsonNode?> args = Args;
@@ -150,6 +171,9 @@ public partial class GptClient
         }
 
         /// <summary>Конвертирует JsonNode в указанный тип</summary>
+        /// <param name="JsonValue">Json-значение</param>
+        /// <param name="TargetType">Целевой тип</param>
+        /// <returns>Сконвертированное значение</returns>
         private static object? ConvertJsonValueToParameterType(JsonNode JsonValue, Type TargetType)
         {
             // Обработка nullable типов
@@ -195,8 +219,10 @@ public partial class GptClient
             };
         }
 
-
         /// <summary>Конвертирует JsonArray в массив</summary>
+        /// <param name="JsonArray">Json-массив</param>
+        /// <param name="ArrayType">Тип массива</param>
+        /// <returns>Массив</returns>
         private static Array ConvertJsonArrayToArray(JsonArray JsonArray, Type ArrayType)
         {
             var element_type = ArrayType.GetElementType()!;
@@ -212,6 +238,9 @@ public partial class GptClient
         }
 
         /// <summary>Конвертирует JsonArray в List</summary>
+        /// <param name="JsonArray">Json-массив</param>
+        /// <param name="ListType">Тип списка</param>
+        /// <returns>Список</returns>
         private static object ConvertJsonArrayToList(JsonArray JsonArray, Type ListType)
         {
             var element_type = ListType.GetGenericArguments()[0];
@@ -228,6 +257,9 @@ public partial class GptClient
         }
 
         /// <summary>Конвертирует JsonArray в IEnumerable</summary>
+        /// <param name="JsonArray">Json-массив</param>
+        /// <param name="EnumerableType">Тип IEnumerable</param>
+        /// <returns>IEnumerable</returns>
         private static object ConvertJsonArrayToEnumerable(JsonArray JsonArray, Type EnumerableType)
         {
             var element_type = EnumerableType.GetGenericArguments()[0];
@@ -236,6 +268,8 @@ public partial class GptClient
             return ConvertJsonArrayToList(JsonArray, list_type);
         }
 
+        /// <summary>Строковое представление информации о функции</summary>
+        /// <returns>Строка с описанием функции</returns>
         public override string ToString()
         {
             var str = new StringBuilder(Name);
