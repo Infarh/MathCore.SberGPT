@@ -1,10 +1,13 @@
 ﻿using MathCore.SberGPT;
+using MathCore.SberGPT.ConsoleTest;
 using MathCore.SberGPT.ConsoleTest.HostedServices;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+await TestSimple.RunAsync();
 
 var builder = Host.CreateApplicationBuilder();
 

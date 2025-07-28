@@ -26,21 +26,73 @@ dotnet add package MathCore.SberGPT
 
 ### Конфигурация через appsettings.json
 
+appsettings.json:
 ```json
-{
-  "secret": "ваш_секретный_ключ",
-  "scope": "GIGACHAT_API_PERS"
-}
+  "Sber": {
+    "Scope": "GIGACHAT_API_PERS",
+    "UserAgent": "MathCore.SberGPT/1.0",
+  } 
 ```
+
+secrets.json:
+```json
+  "sber": {
+    "ClientId": "XXXXXXXX-YYYY-ZZZZ-AAAA-BBBBBBBBBBBB",
+    "secret": "ваш_секретный_ключ",
+    "TokenEncryptionKey": "Giga.Chat-Password",
+    "TokenStoreFile": "chat-gpt.token"
+  } 
+```
+
+Параметры конфигурации:
+- `Scope`: определяет область доступа к API. Доступны следующие значения:
+  - `GIGACHAT_API_PERS` - для физических лиц
+  - `GIGACHAT_API_B2B` - для ИП и юридических лиц
+  - `GIGACHAT_API_CORP` - для корпоративных клиентов
+- `UserAgent`: строка User-Agent для HTTP-запросов
+- `ClientId`: уникальный идентификатор клиента, полученный при регистрации приложения в [Сбербанке](https://developers.sber.ru/studio/workspaces)
+- `TokenEncryptionKey`: ключ для шифрования токенов авторизации, получаемых от сервера в файле кеша
+- `TokenStoreFile`: имя файла для хранения кеша токенов авторизации
+
+Если не указано имя файла кеша токенов, либо не задан пароль, то токены будут кешироваться на диске. Будет работать только кеш токена в памяти клиента. При перезапуске приложения токен будет запрошен у сервера заново.
+
+Время жизни токена, выдаваемого сервером не текущий момент состоавляет 30 минут.
+
 
 ### Конфигурация через User Secrets
 
 ```bash
 dotnet user-secrets set "secret" "ваш_секретный_ключ"
-dotnet user-secrets set "scope" "GIGACHAT_API_PERS"
+dotnet user-secrets set "TokenEncryptionKey" "Giga.Chat-Password"
+dotnet user-secrets set "TokenStoreFile" "chat-gpt.token"
 ```
 
 ## Примеры использования
+
+### Пример 0. Простейший пример использования
+
+```csharp
+var cfg = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Sber:ClientId"] = "258===e8-e==8-4==8-b==e-7===bda===4e",
+        ["Sber:secret"] = "MjU---MxZ---ZTk---00N---LWJ---UtN---M2J---Y5M---OmJ---QxZ---LTM---ItN---Ni0---RhL---OTc---RhM---Ywi3",
+    })
+    .Build();
+
+var gpt = new GptClient(cfg.GetSection("Sber"));
+
+await gpt.AddFunctionAsync(Functions.GetWeather);
+
+var response = await gpt.RequestAsync("Можно ли будет завтра пойти искупаться в Самаре?");
+
+Console.WriteLine(response);
+```
+Параметры:
+- ClientId - идентификатор клиента
+- secret - секретный ключ, полученный при регистрации приложения
+
+получить [здесь](https://developers.sber.ru/studio/workspaces)
 
 ### Пример 1. Простой текстовый запрос
 

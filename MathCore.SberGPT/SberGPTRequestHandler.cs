@@ -42,12 +42,13 @@ public class SberGPTRequestHandler : DelegatingHandler
         _ClientId = _Config["ClientId"] ?? Guid.NewGuid().ToString();
         _UserAgent = ProductInfoHeaderValue.Parse(_Config["UserAgent"] ??= "MathCore.SberGPT/1.0");
 
-        //InnerHandler ??= new HttpClientHandler
-        //{
-        //    ClientCertificateOptions = ClientCertificateOption.Manual,
-        //    ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
-        //    AutomaticDecompression = DecompressionMethods.All
-        //};
+        if (InnerHandler is null && (!AppContext.TryGetSwitch("UseDI", out var use_di) || !use_di))
+            InnerHandler ??= new HttpClientHandler
+            {
+                ClientCertificateOptions = ClientCertificateOption.Manual,
+                ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+                AutomaticDecompression = DecompressionMethods.All
+            };
     }
 
     /// <summary>Опции сериализации JSON для отладки</summary>
