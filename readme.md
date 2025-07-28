@@ -250,8 +250,8 @@ var image_guid = await client.GenerateImageAsync([
 ]);
 
 // Загрузка изображения
-var imageBytes = await client.DownloadImageById(image_guid);
-await File.WriteAllBytesAsync("sunset.jpg", imageBytes);
+var image_bytes = await client.DownloadImageById(image_guid);
+await File.WriteAllBytesAsync("sunset.jpg", image_bytes);
 ```
 
 ### Потоковая передача ответов
