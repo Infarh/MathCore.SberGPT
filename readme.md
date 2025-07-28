@@ -244,13 +244,27 @@ public enum TemperatureUnit
 
 ```csharp
 // Генерация изображения
-var image_guid = await client.GenerateImageAsync([
-    new("Ты талантливый художник", RequestRole.system),
-    new("Нарисуй красивый закат над морем")
+var image_guid = await client.GenerateImageAsync(
+[
+    GptClient.Request.System("Ты талантливый художник"),
+    GptClient.Request.User("Нарисуй красивый закат над морем")
 ]);
 
 // Загрузка изображения
 var image_bytes = await client.DownloadImageById(image_guid);
+await File.WriteAllBytesAsync("sunset.jpg", image_bytes);
+```
+
+Либо можно проще:
+
+```csharp
+// Изображение будет сгенерировано, после чего клиент выполнит его загрузку
+var image_bytes = await client.GenerateAndDownloadImageAsync(
+[
+    GptClient.Request.System("Ты талантливый художник"),
+    GptClient.Request.User("Нарисуй красивый закат над морем")
+]);
+
 await File.WriteAllBytesAsync("sunset.jpg", image_bytes);
 ```
 
@@ -261,6 +275,14 @@ await foreach (var chunk in client.RequestStreamingAsync("Расскажи ин�
 {
     Console.Write(chunk.MessageAssistant);
 }
+```
+
+Либо можно получить сразу всё сообщение целиком и отравить его в `TextWriter`
+
+```csharp
+await client
+    .RequestStreamingAsync("Можно ли будет завтра пойти искупаться в Самаре?")
+    .PrintToAsync(Console.Out);
 ```
 
 ### Подсчет токенов
