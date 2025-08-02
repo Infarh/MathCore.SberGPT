@@ -30,7 +30,7 @@ namespace MathCore.SberGPT;
 /// <remarks>Клиент для запросов к Giga chat</remarks>
 /// <param name="Http">Http-клиент для отправки запросов</param>
 /// <param name="Log">Логгер</param>
-public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
+public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 {
     //internal const string BaseUrl = "http://localhost:8881";
     internal const string BaseUrl = "https://gigachat.devices.sberbank.ru/api/v1/";
@@ -40,15 +40,15 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     internal const string RequestXIdHeader = "X-Request-ID";
     internal const string SessionXIdHeader = "X-Session-ID";
 
-    private readonly ILogger _Log = Log;
+    private readonly ILogger _Log = Log ?? NullLogger<GptClient>.Instance;
 
     #region Конструктор
 
     /// <summary>Клиент для запросов к Giga chat</summary>
     public GptClient(IConfiguration config, ILogger<GptClient>? Log = null)
         : this(
-            Http: new(new SberGPTRequestHandler(config, Log ?? NullLogger<GptClient>.Instance)) { BaseAddress = new(BaseUrl) },
-            Log: Log ?? NullLogger<GptClient>.Instance)
+            Http: new(new SberGPTRequestHandler(config, Log)) { BaseAddress = new(BaseUrl) },
+            Log: Log)
     {
 
     }

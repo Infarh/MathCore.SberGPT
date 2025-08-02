@@ -1,4 +1,5 @@
-﻿using MathCore.SberGPT;
+﻿// ReSharper disable HeuristicUnreachableCode
+using MathCore.SberGPT;
 using MathCore.SberGPT.ConsoleTest;
 using MathCore.SberGPT.ConsoleTest.HostedServices;
 
@@ -7,7 +8,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-await TestSimple.RunAsync();
+//await TestSimple.RunAsync();
+await TestFiles.RunAsync();
+
+Console.WriteLine("End.");
+Console.ReadLine();
+
+return;
 
 var builder = Host.CreateApplicationBuilder();
 
@@ -18,20 +25,22 @@ cfg.AddUserSecrets(typeof(Program).Assembly);
 var log = builder.Logging;
 log.AddConsole();
 log.AddDebug();
-log.AddFilter((n, l) => (n, l) switch
-{
-    ("MathCore.SberGPT.GptClient", >= LogLevel.Trace) => true,
-    (_, >= LogLevel.Information) => true,
-    _ => false
-});
-log.AddConfiguration(cfg);
+//log.AddFilter((n, l) => (n, l) switch
+//{
+//    ("MathCore.SberGPT.GptClient", >= LogLevel.Trace) => true,
+//    (_, >= LogLevel.Information) => true,
+//    _ => false
+//});
+//log.AddConfiguration(cfg);
 
 var srv = builder.Services;
 srv.AddSberGPT();
 
-srv.AddHostedService<MainWorker>();
+//srv.AddHostedService<MainWorker>();
+srv.AddHostedService<FilesWorker>();
 
 var app = builder.Build();
+
 
 await app.RunAsync();
 

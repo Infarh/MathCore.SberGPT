@@ -2,13 +2,11 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Unicode;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 // ReSharper disable SettingNotFoundInConfiguration
 
 namespace MathCore.SberGPT;
@@ -24,39 +22,27 @@ public class SberGPTRequestHandler : DelegatingHandler
 
     /// <summary>Конфигурация клиента</summary>
     private readonly IConfiguration _Config;
+
     /// <summary>Логгер для вывода диагностической информации</summary>
     private readonly ILogger _Log;
+
     /// <summary>Идентификатор клиента</summary>
     private readonly string _ClientId;
+
     /// <summary>Значение заголовка User-Agent</summary>
     private readonly ProductInfoHeaderValue _UserAgent;
 
     /// <summary>Инициализация нового экземпляра <see cref="SberGPTRequestHandler"/></summary>
     /// <param name="Config">Конфигурация клиента</param>
     /// <param name="Log">Логгер</param>
-    public SberGPTRequestHandler(IConfiguration Config, ILogger Log)
+    public SberGPTRequestHandler(IConfiguration Config, ILogger? Log)
     {
         _Config = Config;
-        _Log = Log;
+        _Log = Log ?? NullLogger<GptClient>.Instance;
 
         _ClientId = _Config["ClientId"] ?? Guid.NewGuid().ToString();
         _UserAgent = ProductInfoHeaderValue.Parse(_Config["UserAgent"] ??= "MathCore.SberGPT/1.0");
-
-        if (InnerHandler is null && (!AppContext.TryGetSwitch("UseDI", out var use_di) || !use_di))
-            InnerHandler ??= new HttpClientHandler
-            {
-                ClientCertificateOptions = ClientCertificateOption.Manual,
-                ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
-                AutomaticDecompression = DecompressionMethods.All
-            };
     }
-
-    /// <summary>Опции сериализации JSON для отладки</summary>
-    private static readonly JsonSerializerOptions __RequestSerializationOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic),
-    };
 
     /// <summary>Выполняет отправку HTTP-запроса с автоматическим управлением токеном доступа</summary>
     /// <param name="request">HTTP-запрос</param>
@@ -64,6 +50,14 @@ public class SberGPTRequestHandler : DelegatingHandler
     /// <returns>HTTP-ответ</returns>
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel)
     {
+        // Убеждаемся что InnerHandler установлен (для случаев использования без DI)
+        InnerHandler ??= new HttpClientHandler
+        {
+            ClientCertificateOptions = ClientCertificateOption.Manual,
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+            AutomaticDecompression = DecompressionMethods.All
+        };
+
         if (_AccessToken is not { Expired: false } access_token)
         {
             if (_Log.IsEnabled(LogLevel.Trace))
