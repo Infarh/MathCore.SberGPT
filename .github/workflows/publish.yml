@@ -10,6 +10,7 @@ on:
     - '**.docx'
     - '**.bat'
     - '**.vssettings'
+  workflow_dispatch: # ручной запуск сценария
 
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
@@ -89,7 +90,7 @@ jobs:
             path: ${{ github.workspace }}/ReleasePack
             
       - name: Upload to GitHub
-        run: dotnet nuget push "**/*.nupkg" --skip-duplicate -s "https://nuget.pkg.github.com/Infarh/index.json" -k ${{ secrets.NUGET_AUTH_TOKEN }}
+        run: dotnet nuget push "**/*.nupkg" --skip-duplicate -s https://nuget.pkg.github.com/Infarh/index.json -k ${{secrets.GITHUB_TOKEN}}
         
   clean:
     name: Clean artifact

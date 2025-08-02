@@ -1,11 +1,13 @@
 ﻿namespace MathCore.SberGPT.Infrastructure.Extensions;
 
+/// <summary>Статический класс-расширение для IEnumerable.</summary>
 internal static class EnumerableEx
 {
+    /// <summary>Преобразует элементы последовательности в строку с разделителем.</summary>
     public static string ToSeparatedStr<T>(this IEnumerable<T> source, string separator = ", ")
     {
-        if (source is null) throw new ArgumentNullException(nameof(source));
-        if (separator is null) throw new ArgumentNullException(nameof(separator));
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(separator);
 
         return string.Join(separator, source);
     }

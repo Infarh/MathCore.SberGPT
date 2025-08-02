@@ -8,6 +8,7 @@ using MathCore.SberGPT.Attributes;
 
 namespace MathCore.SberGPT.Extensions;
 
+/// <summary>Вспомогательные методы для работы с типами.</summary>
 public static class TypeEx
 {
     /// <summary>Формирует JSON-схему типа в формате OpenAPI (JSON Schema)</summary>

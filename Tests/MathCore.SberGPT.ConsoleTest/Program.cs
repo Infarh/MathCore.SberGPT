@@ -1,36 +1,20 @@
-﻿using System.Text.Encodings.Web;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Text.Unicode;
-
+﻿// ReSharper disable HeuristicUnreachableCode
 using MathCore.SberGPT;
+using MathCore.SberGPT.ConsoleTest;
 using MathCore.SberGPT.ConsoleTest.HostedServices;
-using MathCore.SberGPT.Extensions;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-//await Test.RunAsync();
+//await TestSimple.RunAsync();
+await TestFiles.RunAsync();
 
-var json_opt = new JsonSerializerOptions()
-{
-    WriteIndented = true,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-    Encoder = JavaScriptEncoder.Create(UnicodeRanges.Cyrillic, UnicodeRanges.BasicLatin),
-};
+Console.WriteLine("End.");
+Console.ReadLine();
 
-string GetJsonScheme(Delegate function)
-{
-    var scheme = function.GetJsonScheme();
-    return scheme.ToJsonString(json_opt);
-}
-
-var f1 = GetJsonScheme(Functions.GetWeather);
-var f2 = GetJsonScheme(Functions.GetTripDistance);
-var f3 = GetJsonScheme(Functions.SendSMS);
-var f4 = GetJsonScheme(Functions.SearchMovies);
+return;
 
 var builder = Host.CreateApplicationBuilder();
 
@@ -41,29 +25,27 @@ cfg.AddUserSecrets(typeof(Program).Assembly);
 var log = builder.Logging;
 log.AddConsole();
 log.AddDebug();
-log.AddFilter((n, l) => (n, l) switch
-{
-    ("MathCore.SberGPT.GptClient", >= LogLevel.Trace) => true,
-    (_, >= LogLevel.Information) => true,
-    _ => false
-});
-log.AddConfiguration(cfg);
+//log.AddFilter((n, l) => (n, l) switch
+//{
+//    ("MathCore.SberGPT.GptClient", >= LogLevel.Trace) => true,
+//    (_, >= LogLevel.Information) => true,
+//    _ => false
+//});
+//log.AddConfiguration(cfg);
 
 var srv = builder.Services;
 srv.AddSberGPT();
 
-srv.AddHostedService<MainWorker>();
+//srv.AddHostedService<MainWorker>();
+srv.AddHostedService<FilesWorker>();
 
 var app = builder.Build();
+
 
 await app.RunAsync();
 
 Console.WriteLine("End.");
 return;
-
-
-
-
 
 //var builder = Host.CreateDefaultBuilder(args)
 //        .ConfigureAppConfiguration(c => c.AddUserSecrets(typeof(Program).Assembly))

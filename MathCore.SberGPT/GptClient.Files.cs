@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
@@ -26,15 +27,17 @@ public partial class GptClient
         , [property: JsonPropertyName("access_policy")] AccessPolicy AccessPolicy
     );
 
+    /// <summary>Информация о загружаемом файле</summary>
     public readonly record struct FileUploadInfo(
         [property: JsonPropertyName("file")] string FileName,
         [property: JsonPropertyName("purpose")] string Purpose
     );
 
+    /// <summary>Информация об удалении файла</summary>
     public readonly record struct FileDeleteInfo(
         [property: JsonPropertyName("id")] Guid Id
         , [property: JsonPropertyName("deleted")] bool Deleted
-        , [property: JsonPropertyName("access_policy")] AccessPolicy AccessPolicy
+        , [property: JsonPropertyName("access_policy")] AccessPolicy? Access
     );
 
     /// <summary>Режим доступа</summary>
@@ -71,7 +74,7 @@ public partial class GptClient
         }
         catch (InvalidOperationException ex)
         {
-            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync(Cancel).ConfigureAwait(false);
             _Log.LogError(ex, "Ошибка при получении файлов: {Message}", content);
 
             throw;
@@ -90,34 +93,71 @@ public partial class GptClient
         string Purpose = "general",
         CancellationToken Cancel = default)
     {
+        const string url = "files";
+
         ArgumentNullException.ThrowIfNull(FileName);
         ArgumentNullException.ThrowIfNull(FileStream);
 
-        const string url = "files";
         _Log.LogInformation("Загрузка файла {FileName} в хранилище...", FileName);
 
-        var content = new MultipartFormDataContent
+        var request = new MultipartFormDataContent()
         {
-            {new StreamContent(FileStream) { Headers = { ContentType = new("application/octet-stream") }}, "file", FileName},
-            {new StringContent(Purpose), "purpose"},
+            new StreamContent(FileStream)
+            {
+                Headers =
+                {
+                    ContentType = new("text/plain"),
+                    ContentDisposition = new("form-data") { Name = "\"file\"", FileName = $"\"{FileName}\"" }
+                }
+            },
+            new StringContent(Purpose)
+            {
+                Headers =
+                {
+                    ContentType = null,
+                    ContentDisposition = new("form-data") { Name = "\"purpose\"" }
+                }
+            }
         };
 
-        var response = await Http.PostAsync(url, content, Cancel).ConfigureAwait(false);
+        var content_type_parameter = request.Headers.ContentType!.Parameters.First();
+        var old_boundary = content_type_parameter.Value!;
+        content_type_parameter.Value = old_boundary.Trim('"');
 
-        var file_info = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
-            .ConfigureAwait(false);
+        var response = await Http.PostAsync(url, request, Cancel).ConfigureAwait(false);
 
-        if (file_info is not { Name: { Length: > 0 } })
-            throw new InvalidOperationException("Не удалось загрузить файл");
+        try
+        {
+            var file_info = await response
+                .EnsureSuccessStatusCode()
+                .Content
+                .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
+                .ConfigureAwait(false);
 
-        _Log.LogInformation("Файл {FileName} загружен", FileName);
+            if (file_info is not { Name: { Length: > 0 } })
+                throw new InvalidOperationException("Не удалось загрузить файл");
 
-        return file_info;
+            _Log.LogInformation("Файл {FileName} загружен", FileName);
+
+            return file_info;
+        }
+        catch (HttpRequestException e)
+        {
+            var error_content = await response.Content.ReadAsStringAsync(Cancel).ConfigureAwait(false);
+            _Log.LogError(e, "Upload file error {FileName}, {Purpose} status: {StatusCode} {ErrorServerResponse}",
+                FileName, Purpose, e.StatusCode, error_content);
+
+            throw new InvalidOperationException($"Ошибка ответа сервера:\r\n{error_content}", e)
+                .WithData(nameof(e.Message), e.Message)
+                .WithData(nameof(e.StatusCode), e.StatusCode)
+                .WithData("ErrorContent", error_content);
+        }
     }
 
+    /// <summary>Получить информацию о файле</summary>
+    /// <param name="Id">Идентификатор файла</param>
+    /// <param name="Cancel">Отмена операции</param>
+    /// <returns>Информация о файле</returns>
     public async Task<FileDescription> GetFileInfoAsync(Guid Id, CancellationToken Cancel = default)
     {
         const string url = "files";
@@ -140,6 +180,10 @@ public partial class GptClient
         return file_info;
     }
 
+    /// <summary>Скачать файл в поток</summary>
+    /// <param name="FileId">Идентификатор файла</param>
+    /// <param name="DataStream">Поток для записи данных</param>
+    /// <param name="Cancel">Отмена операции</param>
     public async Task DownloadFileAsync(
         Guid FileId,
         Stream DataStream,
@@ -177,28 +221,58 @@ public partial class GptClient
         await response.CopyToAsync(DataStream, Cancel).ConfigureAwait(false);
     }
 
+    /// <summary>Удалить файл из хранилища</summary>
+    /// <param name="Id">Идентификатор файла</param>
+    /// <param name="Cancel">Отмена операции</param>
+    /// <returns>Информация об удалении файла</returns>
     public async Task<FileDeleteInfo> DeleteFileAsync(Guid Id, CancellationToken Cancel = default)
     {
         const string url = "files";
-        var url_address = $"{url}/{Id}";
+        var url_address = $"{url}/{Id}/delete";
 
         _Log.LogInformation("Удаление файла {Id}", Id);
 
-        var response = await Http.DeleteAsync(url_address, Cancel).ConfigureAwait(false);
+        var request = new HttpRequestMessage(HttpMethod.Post, url_address)
+        {
+            Headers = { Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json") } }
+        };
 
-        var file_info = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<FileDeleteInfo>(__DefaultOptions, Cancel)
-            .ConfigureAwait(false);
+        var response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
-        // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
-        if (file_info is { Deleted: true })
-            _Log.LogInformation("Файл {Id} удален", Id);
-        else
-            _Log.LogInformation("Файл {Id} не удален", Id);
+        try
+        {
+            var file_info = await response
+                .EnsureSuccessStatusCode()
+                .Content
+                .ReadFromJsonAsync<FileDeleteInfo>(__DefaultOptions, Cancel)
+                .ConfigureAwait(false);
 
+            // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
+            if (file_info is { Deleted: true })
+                _Log.LogInformation("Файл {Id} удален", Id);
+            else
+                _Log.LogInformation("Файл {Id} не удален", Id);
 
-        return file_info;
+            return file_info;
+        }
+        catch (HttpRequestException e)
+        {
+            var error_content = await response.Content.ReadAsStringAsync(Cancel).ConfigureAwait(false);
+
+            _Log.LogError(e, "Ошибка[{StatusCode}] в ходе передачи запроса на удаление файла {Id}: {Message}",
+                e.StatusCode, Id, e.Message);
+
+            throw new InvalidOperationException($"Ошибка[{e.StatusCode}] в ходе передачи запроса на удаление файла {Id}", e)
+                .WithData("ErrorContent", error_content);
+        }
+        catch (Exception e)
+        {
+            var error_content = await response.Content.ReadAsStringAsync(Cancel).ConfigureAwait(false);
+
+            _Log.LogError(e, "Ошибка в ходе передачи запроса на удаление файла {Id}: {Message}", Id, e.Message);
+
+            throw new InvalidOperationException($"Ошибка в ходе передачи запроса на удаление файла {Id}", e)
+                .WithData("ErrorContent", error_content);
+        }
     }
 }

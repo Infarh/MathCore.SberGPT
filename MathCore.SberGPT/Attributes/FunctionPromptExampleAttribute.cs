@@ -2,13 +2,17 @@
 
 namespace MathCore.SberGPT.Attributes;
 
+/// <summary>Атрибут для задания примера prompt и параметров функции.</summary>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Parameter, AllowMultiple = true)]
 public sealed class PromptExampleAttribute(string Prompt, params string[] ExampleParameter) : Attribute
 {
+    /// <summary>Пример prompt для функции.</summary>
     public string Prompt { get; set; } = Prompt;
 
+    /// <summary>Пример параметров функции.</summary>
     public string[] ExampleParameter { get; set; } = ExampleParameter;
 
+    /// <summary>Возвращает параметры примера в виде JsonObject.</summary>
     public JsonObject GetExampleParameters()
     {
         var result = new JsonObject();
@@ -22,6 +26,7 @@ public sealed class PromptExampleAttribute(string Prompt, params string[] Exampl
         return result;
     }
 
+    /// <summary>Разделяет строку параметра на имя и значение.</summary>
     private static KeyValuePair<string, string> GetParameterValue(string ParameterValueString)
     {
         const char delimiter_char = ':';

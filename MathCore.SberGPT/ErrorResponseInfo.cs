@@ -1,3 +1,4 @@
 ﻿namespace MathCore.SberGPT;
 
-internal record ErrorResponseInfo(int Code, string Message);
+/// <summary>Информация об ошибке для ответа API.</summary>
+internal record ErrorResponseInfo(int Code, string Message); // Код ошибки и сообщение

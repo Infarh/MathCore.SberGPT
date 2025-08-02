@@ -3,8 +3,10 @@ using System.Text.Json.Nodes;
 
 namespace MathCore.SberGPT.Extensions;
 
+/// <summary>Статический класс-расширение для MethodInfo.</summary>
 internal static class MethodInfoEx
 {
+    /// <summary>Формирует JSON-схему параметров метода.</summary>
     public static JsonNode GetParametersJsonScheme(this MethodInfo method)
     {
         var json_scheme = new JsonObject();

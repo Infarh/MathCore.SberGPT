@@ -30,7 +30,7 @@ namespace MathCore.SberGPT;
 /// <remarks>Клиент для запросов к Giga chat</remarks>
 /// <param name="Http">Http-клиент для отправки запросов</param>
 /// <param name="Log">Логгер</param>
-public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
+public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 {
     //internal const string BaseUrl = "http://localhost:8881";
     internal const string BaseUrl = "https://gigachat.devices.sberbank.ru/api/v1/";
@@ -40,22 +40,30 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     internal const string RequestXIdHeader = "X-Request-ID";
     internal const string SessionXIdHeader = "X-Session-ID";
 
-    private readonly ILogger _Log = Log;
+    private readonly ILogger _Log = Log ?? NullLogger<GptClient>.Instance;
 
     #region Конструктор
 
     /// <summary>Клиент для запросов к Giga chat</summary>
     public GptClient(IConfiguration config, ILogger<GptClient>? Log = null)
         : this(
-            Http: new(new SberGPTRequestHandler(config, Log ?? NullLogger<GptClient>.Instance)) { BaseAddress = new(BaseUrl) },
-            Log: Log ?? NullLogger<GptClient>.Instance)
+            Http: new(new SberGPTRequestHandler(config, Log)) { BaseAddress = new(BaseUrl) },
+            Log: Log)
     {
 
     }
 
+    /// <summary>Создаёт конфигурацию для клиента GigaChat на основе секрета и области</summary>
+    /// <param name="Secret">Секретный ключ для авторизации</param>
+    /// <param name="Scope">Область доступа (по умолчанию "GIGACHAT_API_PERS")</param>
+    /// <returns>Объект конфигурации</returns>
     private static IConfiguration GetConfig(string Secret, string? Scope) => new ConfigurationBuilder()
         .AddInMemoryCollection([new("secret", Secret), new("scope", Scope ?? "GIGACHAT_API_PERS")]).Build();
 
+    /// <summary>Инициализирует новый экземпляр клиента GigaChat с использованием секрета и области</summary>
+    /// <param name="Secret">Секретный ключ для авторизации</param>
+    /// <param name="Scope">Область доступа (по умолчанию "GIGACHAT_API_PERS")</param>
+    /// <param name="Log">Логгер для вывода диагностической информации</param>
     public GptClient(string Secret, string? Scope = null, ILogger<GptClient>? Log = null)
         : this(
             Http: new(new SberGPTRequestHandler(GetConfig(Secret, Scope), Log ?? NullLogger<GptClient>.Instance)) { BaseAddress = new(BaseUrl) },
@@ -452,6 +460,9 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
     /// - user — сообщение пользователя;<br/>
     /// - function — сообщение с результатом работы пользовательской функции. В сообщении с этой ролью передавайте в поле content валидный JSON-объект с результатами работы функции.
     /// </param>
+    /// <param name="FunctionStateId">Идентификатор вызова функции</param>
+    /// <param name="FunctionCall">Вызов функции</param>
+    /// <param name="Name">Название</param>
     public readonly record struct Request(
         [property: JsonPropertyName("content"), JsonPropertyOrder(1)] string Content,
         [property: JsonPropertyName("role"), JsonPropertyOrder(0)] RequestRole Role = RequestRole.user,
@@ -484,6 +495,9 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient> Log)
         /// <param name="request">Объект запроса</param>
         public static implicit operator Request((string Content, RequestRole Role) request) => new(request.Content, request.Role);
 
+        /// <summary>Неявное преобразование строки в объект запроса пользователя</summary>
+        /// <param name="request">Текст запроса пользователя</param>
+        /// <returns>Объект запроса с ролью пользователя</returns>
         public static implicit operator Request(string request) => new(request);
     }
 

@@ -1,4 +1,5 @@
-﻿namespace MathCore.SberGPT;
+﻿// ReSharper disable InconsistentNaming
+namespace MathCore.SberGPT;
 
 public enum RequestRole
 {
