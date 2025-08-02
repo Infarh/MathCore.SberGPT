@@ -92,32 +92,65 @@ public partial class GptClient
         string Purpose = "general",
         CancellationToken Cancel = default)
     {
+        const string url = "files";
+
         ArgumentNullException.ThrowIfNull(FileName);
         ArgumentNullException.ThrowIfNull(FileStream);
 
-        const string url = "files";
         _Log.LogInformation("Загрузка файла {FileName} в хранилище...", FileName);
 
-        var content = new MultipartFormDataContent
+        var request = new MultipartFormDataContent()
         {
-            {new StreamContent(FileStream) { Headers = { ContentType = new("application/octet-stream") }}, "file", FileName},
-            {new StringContent(Purpose), "purpose"},
+            new StreamContent(FileStream)
+            {
+                Headers =
+                {
+                    ContentType = new("text/plain"),
+                    ContentDisposition = new("form-data") { Name = "\"file\"", FileName = $"\"{FileName}\"" }
+                }
+            },
+            new StringContent(Purpose)
+            {
+                Headers =
+                {
+                    ContentType = null,
+                    ContentDisposition = new("form-data") { Name = "\"purpose\"" }
+                }
+            }
         };
 
-        var response = await Http.PostAsync(url, content, Cancel).ConfigureAwait(false);
+        var content_type_parameter = request.Headers.ContentType!.Parameters.First();
+        var old_boundary = content_type_parameter.Value!;
+        content_type_parameter.Value = old_boundary.Trim('"');
 
-        var file_info = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
-            .ConfigureAwait(false);
+        var response = await Http.PostAsync(url, request, Cancel).ConfigureAwait(false);
 
-        if (file_info is not { Name: { Length: > 0 } })
-            throw new InvalidOperationException("Не удалось загрузить файл");
+        try
+        {
+            var file_info = await response
+                .EnsureSuccessStatusCode()
+                .Content
+                .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
+                .ConfigureAwait(false);
 
-        _Log.LogInformation("Файл {FileName} загружен", FileName);
+            if (file_info is not { Name: { Length: > 0 } })
+                throw new InvalidOperationException("Не удалось загрузить файл");
 
-        return file_info;
+            _Log.LogInformation("Файл {FileName} загружен", FileName);
+
+            return file_info;
+        }
+        catch (HttpRequestException e)
+        {
+            var error_content = await response.Content.ReadAsStringAsync(Cancel).ConfigureAwait(false);
+            _Log.LogError(e, "Upload file error {FileName}, {Purpose} status: {StatusCode} {ErrorServerResponse}",
+                FileName, Purpose, e.StatusCode, error_content);
+
+            throw new InvalidOperationException($"Ошибка ответа сервера:\r\n{error_content}", e)
+                .WithData(nameof(e.Message), e.Message)
+                .WithData(nameof(e.StatusCode), e.StatusCode)
+                .WithData("ErrorContent", error_content);
+        }
     }
 
     /// <summary>Получить информацию о файле</summary>
