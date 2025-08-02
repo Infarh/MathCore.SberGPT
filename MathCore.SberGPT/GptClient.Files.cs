@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
@@ -36,7 +37,7 @@ public partial class GptClient
     public readonly record struct FileDeleteInfo(
         [property: JsonPropertyName("id")] Guid Id
         , [property: JsonPropertyName("deleted")] bool Deleted
-        , [property: JsonPropertyName("access_policy")] AccessPolicy AccessPolicy
+        , [property: JsonPropertyName("access_policy")] AccessPolicy? Access
     );
 
     /// <summary>Режим доступа</summary>
@@ -227,25 +228,51 @@ public partial class GptClient
     public async Task<FileDeleteInfo> DeleteFileAsync(Guid Id, CancellationToken Cancel = default)
     {
         const string url = "files";
-        var url_address = $"{url}/{Id}";
+        var url_address = $"{url}/{Id}/delete";
 
         _Log.LogInformation("Удаление файла {Id}", Id);
 
-        var response = await Http.DeleteAsync(url_address, Cancel).ConfigureAwait(false);
+        var request = new HttpRequestMessage(HttpMethod.Post, url_address)
+        {
+            Headers = { Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json") } }
+        };
 
-        var file_info = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<FileDeleteInfo>(__DefaultOptions, Cancel)
-            .ConfigureAwait(false);
+        var response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
-        // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
-        if (file_info is { Deleted: true })
-            _Log.LogInformation("Файл {Id} удален", Id);
-        else
-            _Log.LogInformation("Файл {Id} не удален", Id);
+        try
+        {
+            var file_info = await response
+                .EnsureSuccessStatusCode()
+                .Content
+                .ReadFromJsonAsync<FileDeleteInfo>(__DefaultOptions, Cancel)
+                .ConfigureAwait(false);
 
+            // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
+            if (file_info is { Deleted: true })
+                _Log.LogInformation("Файл {Id} удален", Id);
+            else
+                _Log.LogInformation("Файл {Id} не удален", Id);
 
-        return file_info;
+            return file_info;
+        }
+        catch (HttpRequestException e)
+        {
+            var error_content = await response.Content.ReadAsStringAsync(Cancel).ConfigureAwait(false);
+
+            _Log.LogError(e, "Ошибка[{StatusCode}] в ходе передачи запроса на удаление файла {Id}: {Message}",
+                e.StatusCode, Id, e.Message);
+
+            throw new InvalidOperationException($"Ошибка[{e.StatusCode}] в ходе передачи запроса на удаление файла {Id}", e)
+                .WithData("ErrorContent", error_content);
+        }
+        catch (Exception e)
+        {
+            var error_content = await response.Content.ReadAsStringAsync(Cancel).ConfigureAwait(false);
+
+            _Log.LogError(e, "Ошибка в ходе передачи запроса на удаление файла {Id}: {Message}", Id, e.Message);
+
+            throw new InvalidOperationException($"Ошибка в ходе передачи запроса на удаление файла {Id}", e)
+                .WithData("ErrorContent", error_content);
+        }
     }
 }
