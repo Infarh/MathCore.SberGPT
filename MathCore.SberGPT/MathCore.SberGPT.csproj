@@ -8,9 +8,9 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <Version>0.0.0.1</Version>
+    <Version>0.0.1</Version>
     <PackageReleaseNotes>
-      Инициализация проекта
+      Отладка базовой логики клиента
     </PackageReleaseNotes>
   </PropertyGroup>
 
