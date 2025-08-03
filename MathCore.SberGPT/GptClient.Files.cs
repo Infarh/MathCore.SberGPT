@@ -1,6 +1,4 @@
 ﻿using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 
 using MathCore.SberGPT.Models;
 
@@ -22,11 +20,7 @@ public partial class GptClient
 
         try
         {
-            var result = await response
-               .EnsureSuccessStatusCode()
-               .Content
-               .ReadFromJsonAsync<GetFilesResponse>(JsonOptions, Cancel)
-               .ConfigureAwait(false);
+            var result = await response.AsJsonAsync<GetFilesResponse>(JsonOptions, Cancel).ConfigureAwait(false);
 
             if (result is not { Files: { Length: var files_count } files })
                 throw new InvalidOperationException("Не удалось получить список файлов");
@@ -64,38 +58,15 @@ public partial class GptClient
         _Log.LogInformation("Загрузка файла {FileName} в хранилище...", FileName);
 
         var request = new MultipartFormDataContent()
-        {
-            new StreamContent(FileStream)
-            {
-                Headers =
-                {
-                    ContentType = new("text/plain"),
-                    ContentDisposition = new("form-data") { Name = "\"file\"", FileName = $"\"{FileName}\"" }
-                }
-            },
-            new StringContent(Purpose)
-            {
-                Headers =
-                {
-                    ContentType = null,
-                    ContentDisposition = new("form-data") { Name = "\"purpose\"" }
-                }
-            }
-        };
-
-        var content_type_parameter = request.Headers.ContentType!.Parameters.First();
-        var old_boundary = content_type_parameter.Value!;
-        content_type_parameter.Value = old_boundary.Trim('"');
+            .WithFile(FileName, FileStream)
+            .WithString(Name: "purpose", Str: Purpose)
+            .CheckBoundary();
 
         var response = await Http.PostAsync(url, request, Cancel).ConfigureAwait(false);
 
         try
         {
-            var file_info = await response
-                .EnsureSuccessStatusCode()
-                .Content
-                .ReadFromJsonAsync<FileDescription>(JsonOptions, Cancel)
-                .ConfigureAwait(false);
+            var file_info = await response.AsJsonAsync<FileDescription>(JsonOptions, Cancel).ConfigureAwait(false);
 
             if (file_info is not { Name: { Length: > 0 } })
                 throw new InvalidOperationException("Не удалось загрузить файл");
@@ -129,13 +100,9 @@ public partial class GptClient
 
         var response = await Http.GetAsync(url_address, Cancel).ConfigureAwait(false);
 
-        var file_info = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<FileDescription>(JsonOptions, Cancel)
-            .ConfigureAwait(false);
+        var file_info = await response.AsJsonAsync<FileDescription>(JsonOptions, Cancel).ConfigureAwait(false);
 
-        if (file_info is not { Name: { Length: > 0 } })
+        if (file_info is not { Name.Length: > 0 })
             throw new InvalidOperationException("Не удалось получить информацию о файле");
 
         _Log.LogInformation("Получена информация о файле {Id}", Id);
@@ -196,19 +163,13 @@ public partial class GptClient
         _Log.LogInformation("Удаление файла {Id}", Id);
 
         var request = new HttpRequestMessage(HttpMethod.Post, url_address)
-        {
-            Headers = { Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json") } }
-        };
+            .WithAcceptApplicationJson();
 
         var response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
         try
         {
-            var file_info = await response
-                .EnsureSuccessStatusCode()
-                .Content
-                .ReadFromJsonAsync<FileDeleteInfo>(JsonOptions, Cancel)
-                .ConfigureAwait(false);
+            var file_info = await response.AsJsonAsync<FileDeleteInfo>(JsonOptions, Cancel).ConfigureAwait(false);
 
             // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
             if (file_info is { Deleted: true })

@@ -13,16 +13,9 @@ public partial class GptClient
     protected virtual HttpRequestMessage GetRequestMessage(HttpMethod method, string? url, HttpContent? content)
     {
         var msg = new HttpRequestMessage(method, url)
-        {
-            Content = content
-        };
-
-        if (SessionId is { Length: > 0 } session_id)
-            msg.Headers.Add(SessionXIdHeader, session_id);
-
-        if (RequestId is { Length: > 0 } request_id)
-            msg.Headers.Add(RequestXIdHeader, request_id);
-
+            .WithContent(content)
+            .WithSessionId(SessionId)
+            .WithRequestId(RequestId);
         return msg;
     }
 

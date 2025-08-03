@@ -134,12 +134,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
             .PostAsJsonAsync<GetTokensCountRequest>(url, new(Model, input), cancellationToken: Cancel)
             .ConfigureAwait(false);
 
-        var counts = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<TokensCountResponse[]>(cancellationToken: Cancel)
-            .ConfigureAwait(false)
-            ?? throw new InvalidOperationException();
+        var counts = await response.AsJsonAsync<TokensCountResponse[]>(JsonOptions, Cancel).ConfigureAwait(false);
 
         var result = new TokensCount[counts.Length];
         for (var i = 0; i < result.Length; i++)
@@ -195,11 +190,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 
         var response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
-        var response_message = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<ModelResponse>(JsonOptions, Cancel)
-            .ConfigureAwait(false);
+        var response_message = await response.AsJsonAsync<ModelResponse>(JsonOptions, Cancel).ConfigureAwait(false);
 
         while (response_message.Choices is [{ FinishReason: "function_call", Message: { FunctionCall: { Name: var func_name, Arguments: var args } function_call, FunctionsStateId: var call_id } }, ..])
         {
@@ -221,11 +212,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 
             response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
-            response_message = await response
-                .EnsureSuccessStatusCode()
-                .Content
-                .ReadFromJsonAsync<ModelResponse>(JsonOptions, Cancel)
-                .ConfigureAwait(false);
+            response_message = await response.AsJsonAsync<ModelResponse>(JsonOptions, Cancel).ConfigureAwait(false);
         }
 
         _Log.LogInformation("Успешно получен ответ от модели {ModelType}. Токенов в запросе: {PromptTokens}. Потрачено токенов: {CompletionTokens}. Оплачено токенов {PrecachedPromptTokens} Итого токенов: {TotalTokens}",
@@ -299,11 +286,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
                 throw new HttpRequestException($"Bad request: {response_content}");
             }
 
-            await using var stream = await response
-                .EnsureSuccessStatusCode()
-                .Content
-                .ReadAsStreamAsync(Cancel)
-                .ConfigureAwait(false);
+            await using var stream = await response.AsStream(Cancel).ConfigureAwait(false);
 
             var reader = new StreamReader(stream);
 
@@ -385,11 +368,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 
         var response = await Http.PostAsJsonAsync(request_url, message, JsonOptions, Cancel).ConfigureAwait(false);
 
-        var response_message = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<ModelResponse>(cancellationToken: Cancel)
-            .ConfigureAwait(false);
+        var response_message = await response.AsJsonAsync<ModelResponse>(JsonOptions, Cancel).ConfigureAwait(false);
 
         var content_str = response_message.Choices.First(c => c.Message.Role == "assistant").Message.Content;
         var guid = Guid.Parse(__GuidRegex.Match(content_str).ValueSpan);
@@ -400,12 +379,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
     private async ValueTask<Stream> GetImageDownloadStreamAsync(Guid id, CancellationToken Cancel)
     {
         var response = await Http.GetAsync($"files/{id}/content", Cancel).ConfigureAwait(false);
-
-        var stream = await response.EnsureSuccessStatusCode()
-            .Content
-            .ReadAsStreamAsync(Cancel)
-            .ConfigureAwait(false);
-        return stream;
+        return await response.AsStream(Cancel).ConfigureAwait(false);
     }
 
     public async Task<byte[]> DownloadImageById(Guid id, CancellationToken Cancel = default)
@@ -509,11 +483,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 
         var response = await Http.PostAsJsonAsync(url, request, JsonOptions, Cancel).ConfigureAwait(false);
 
-        var result = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<EmbeddingResponse>(JsonOptions, Cancel)
-            .ConfigureAwait(false);
+        var result = await response.AsJsonAsync<EmbeddingResponse>(JsonOptions, Cancel).ConfigureAwait(false);
 
         return result;
     }

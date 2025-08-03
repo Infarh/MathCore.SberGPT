@@ -1,7 +1,5 @@
 ﻿using MathCore.SberGPT.Models;
 
-using static MathCore.SberGPT.GptClient;
-
 namespace MathCore.SberGPT;
 
 /// <summary>Методы-расширения для работы с потоковыми сообщениями ответа модели</summary>

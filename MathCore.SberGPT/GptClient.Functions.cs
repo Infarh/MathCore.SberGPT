@@ -1,5 +1,4 @@
-﻿using System.Net.Http.Json;
-using System.Text.Encodings.Web;
+﻿using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
 
@@ -7,6 +6,7 @@ using MathCore.SberGPT.Extensions;
 using MathCore.SberGPT.Models;
 
 using Microsoft.Extensions.Logging;
+// ReSharper disable MemberCanBePrivate.Global
 
 namespace MathCore.SberGPT;
 
@@ -19,6 +19,9 @@ public partial class GptClient
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.BasicLatin, UnicodeRanges.Cyrillic),
         WriteIndented = false,
     };
+
+    /// <summary>Словарь зарегистрированных функций</summary>
+    private readonly Dictionary<string, FunctionInfo> _Functions = [];
 
     /// <summary>Выполняет валидацию делегата-функции</summary>
     /// <param name="Function">Делегат функции</param>
@@ -33,21 +36,12 @@ public partial class GptClient
             ?? throw new InvalidOperationException("Не удалось получить имя функции из схемы");
 
         var str_content = JsonSerializer.Serialize(function_info, __ValidateFunctionSerializationOptions);
-        // https://gigachat.devices.sberbank.ru/api/v1/functions/validate
-        var request = new HttpRequestMessage(HttpMethod.Post, "functions/validate")
-        {
-            Content = new StringContent(str_content, null, "application/json") { Headers = { ContentType = new("application/json") } }
-        };
+        var request = new HttpRequestMessage(HttpMethod.Post, "functions/validate").WithJson(str_content);
 
         var response = await Http.SendAsync(request, Cancel);
         try
         {
-            var result = await response
-                .EnsureSuccessStatusCode()
-                .Content
-                .ReadFromJsonAsync<ValidationFunctionResult>(JsonOptions, Cancel)
-                .ConfigureAwait(false)
-                ?? throw new InvalidOperationException("Ошибка получения данных от сервера");
+            var result = await response.AsJsonAsync<ValidationFunctionResult>(JsonOptions, Cancel).ConfigureAwait(false);
 
             if (result.IsCorrect)
                 _Log.LogInformation("Функция {function} успешно прошла валидацию: {result}", function_name, result);
@@ -64,9 +58,7 @@ public partial class GptClient
                 function_info);
 
             throw new InvalidOperationException("Ошибка получения данных от сервера в процессе валидации функции", error)
-            {
-                Data = { [nameof(Function)] = function_info, }
-            };
+                .WithData(nameof(Function), function_info);
         }
     }
 
@@ -79,16 +71,9 @@ public partial class GptClient
     {
         var validation_result = await ValidateFunctionAsync(Function, Cancel).ConfigureAwait(false);
         if (validation_result.HasErrors)
-        {
             throw new InvalidOperationException($"Функция не прошла валидацию: {validation_result.Message}")
-            {
-                Data =
-                {
-                    [nameof(Function)] = Function.GetJsonScheme(),
-                    [nameof(validation_result)] = validation_result,
-                }
-            };
-        }
+                .WithData(nameof(Function), Function.GetJsonScheme())
+                .WithData("ValidationResult", validation_result);
 
         var function_info = Function.GetJsonScheme();
 
@@ -105,7 +90,4 @@ public partial class GptClient
 
         return info;
     }
-
-    /// <summary>Словарь зарегистрированных функций</summary>
-    private readonly Dictionary<string, FunctionInfo> _Functions = [];
 }
