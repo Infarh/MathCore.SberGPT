@@ -1,7 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
+
+using MathCore.SberGPT.Models;
 
 using Microsoft.Extensions.Logging;
 
@@ -9,44 +10,6 @@ namespace MathCore.SberGPT;
 
 public partial class GptClient
 {
-    /// <summary>Информация о файле</summary>
-    /// <param name="Id">Идентификатор</param>
-    /// <param name="Name">Имя файла</param>
-    /// <param name="CreatedAt">Время создания файла в формате</param>
-    /// <param name="Type">Тип файла</param>
-    /// <param name="Length">Размер файла в байтах</param>
-    /// <param name="Purpose">Назначение (general)</param>
-    /// <param name="AccessPolicy">Доступность файла (public|private)</param>
-    public readonly record struct FileDescription(
-        [property: JsonPropertyName("id")] Guid Id
-        , [property: JsonPropertyName("filename")] string Name
-        , [property: JsonPropertyName("created_at"), JsonConverter(typeof(UnixDateTimeConverter))] DateTime CreatedAt
-        , [property: JsonPropertyName("object")] string Type
-        , [property: JsonPropertyName("bytes")] int Length
-        , [property: JsonPropertyName("purpose")] string Purpose
-        , [property: JsonPropertyName("access_policy")] AccessPolicy AccessPolicy
-    );
-
-    /// <summary>Информация о загружаемом файле</summary>
-    public readonly record struct FileUploadInfo(
-        [property: JsonPropertyName("file")] string FileName,
-        [property: JsonPropertyName("purpose")] string Purpose
-    );
-
-    /// <summary>Информация об удалении файла</summary>
-    public readonly record struct FileDeleteInfo(
-        [property: JsonPropertyName("id")] Guid Id
-        , [property: JsonPropertyName("deleted")] bool Deleted
-        , [property: JsonPropertyName("access_policy")] AccessPolicy? Access
-    );
-
-    /// <summary>Режим доступа</summary>
-    public enum AccessPolicy { Private, Public }
-
-    internal record struct GetFilesResponse(
-        [property: JsonPropertyName("data")] FileDescription[] Files
-        );
-
     /// <summary>Получить список доступных файлов</summary>
     /// <param name="Cancel">Отмена операции</param>
     /// <returns>Список файлов</returns>
@@ -62,7 +25,7 @@ public partial class GptClient
             var result = await response
                .EnsureSuccessStatusCode()
                .Content
-               .ReadFromJsonAsync<GetFilesResponse>(__DefaultOptions, Cancel)
+               .ReadFromJsonAsync<GetFilesResponse>(JsonOptions, Cancel)
                .ConfigureAwait(false);
 
             if (result is not { Files: { Length: var files_count } files })
@@ -131,7 +94,7 @@ public partial class GptClient
             var file_info = await response
                 .EnsureSuccessStatusCode()
                 .Content
-                .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
+                .ReadFromJsonAsync<FileDescription>(JsonOptions, Cancel)
                 .ConfigureAwait(false);
 
             if (file_info is not { Name: { Length: > 0 } })
@@ -169,7 +132,7 @@ public partial class GptClient
         var file_info = await response
             .EnsureSuccessStatusCode()
             .Content
-            .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
+            .ReadFromJsonAsync<FileDescription>(JsonOptions, Cancel)
             .ConfigureAwait(false);
 
         if (file_info is not { Name: { Length: > 0 } })
@@ -244,7 +207,7 @@ public partial class GptClient
             var file_info = await response
                 .EnsureSuccessStatusCode()
                 .Content
-                .ReadFromJsonAsync<FileDeleteInfo>(__DefaultOptions, Cancel)
+                .ReadFromJsonAsync<FileDeleteInfo>(JsonOptions, Cancel)
                 .ConfigureAwait(false);
 
             // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression

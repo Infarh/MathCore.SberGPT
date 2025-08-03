@@ -1,7 +1,6 @@
 ﻿using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 
-using static MathCore.SberGPT.GptClient.CheckTextToAIGenerationResponse;
+using MathCore.SberGPT.Models;
 
 namespace MathCore.SberGPT;
 
@@ -20,40 +19,14 @@ public partial class GptClient
 
         var request = new CheckTextToAIGenerationRequest(Text, Model);
 
-        var response = await Http.PostAsJsonAsync(url, request, __DefaultOptions, Cancel).ConfigureAwait(false);
+        var response = await Http.PostAsJsonAsync(url, request, JsonOptions, Cancel).ConfigureAwait(false);
 
         var result = await response
             .EnsureSuccessStatusCode()
             .Content
-            .ReadFromJsonAsync<CheckTextToAIGenerationResponse>(__DefaultOptions, Cancel)
+            .ReadFromJsonAsync<CheckTextToAIGenerationResponse>(JsonOptions, Cancel)
             .ConfigureAwait(false);
 
         return result;
-    }
-
-    /// <summary>Запрос на проверку текста.</summary>
-    public readonly record struct CheckTextToAIGenerationRequest(
-        [property: JsonPropertyName("input")] string Test,
-        [property: JsonPropertyName("model")] string Model
-    );
-
-    /// <summary>Ответ на проверку текста.</summary>
-    public readonly record struct CheckTextToAIGenerationResponse(
-        [property: JsonPropertyName("category")] Class Test
-        , [property: JsonPropertyName("characters")] int TextLength
-        , [property: JsonPropertyName("tokens")] int Tokens
-        , [property: JsonPropertyName("ai_intervals")] int[][] Intervals
-    )
-    {
-        /// <summary>Категория текста, определённая моделью детекции.</summary>
-        public enum Class
-        {
-            /// <summary>Текст сгенерирован ИИ.</summary>
-            AI,
-            /// <summary>Текст написан человеком.</summary>
-            Human,
-            /// <summary>Текст содержит признаки как ИИ, так и человека.</summary>
-            Mixed
-        }
     }
 }

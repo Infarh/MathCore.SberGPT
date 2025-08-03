@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
+using MathCore.SberGPT.Models;
+
 namespace MathCore.SberGPT.Tests;
 
 [TestClass]
@@ -45,7 +47,7 @@ public class GptClientFilesTests
 
             request_str = request_str_builder.ToString();
 
-            var file = new GptClient.FileDescription(Guid.NewGuid(), "123.txt", DateTime.UtcNow, "test", 123, "general", GptClient.AccessPolicy.Public);
+            var file = new FileDescription(Guid.NewGuid(), "123.txt", DateTime.UtcNow, "test", 123, "general", FileAccessPolicy.Public);
             var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(JsonSerializer.Serialize(file))

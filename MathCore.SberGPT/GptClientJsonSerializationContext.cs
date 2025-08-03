@@ -1,22 +1,24 @@
 ﻿using System.Text.Json.Serialization;
 
+using MathCore.SberGPT.Models;
+
 namespace MathCore.SberGPT;
 
 /// <summary>Контекст сериализации для GptClient с поддержкой source generation</summary>
 [JsonSerializable(typeof(AccessToken))]
-[JsonSerializable(typeof(GptClient.ModelRequest))]
-[JsonSerializable(typeof(GptClient.Request))]
-[JsonSerializable(typeof(GptClient.ModelResponse))]
-[JsonSerializable(typeof(GptClient.StreamingResponseMessage))]
-[JsonSerializable(typeof(GptClient.EmbeddingRequest))]
-[JsonSerializable(typeof(GptClient.EmbeddingResponse))]
-[JsonSerializable(typeof(GptClient.ValidationFunctionResult))]
-[JsonSerializable(typeof(GptClient.GetFilesResponse))]
-[JsonSerializable(typeof(GptClient.FileDeleteInfo))]
-[JsonSerializable(typeof(GptClient.BalanceInfo))]
-[JsonSerializable(typeof(GptClient.BalanceValue))]
-[JsonSerializable(typeof(GptClient.CheckTextToAIGenerationRequest))]
-[JsonSerializable(typeof(GptClient.CheckTextToAIGenerationResponse))]
+[JsonSerializable(typeof(ModelRequest))]
+[JsonSerializable(typeof(Request))]
+[JsonSerializable(typeof(ModelResponse))]
+[JsonSerializable(typeof(StreamingResponseMsg))]
+[JsonSerializable(typeof(EmbeddingRequest))]
+[JsonSerializable(typeof(EmbeddingResponse))]
+[JsonSerializable(typeof(ValidationFunctionResult))]
+[JsonSerializable(typeof(GetFilesResponse))]
+[JsonSerializable(typeof(FileDeleteInfo))]
+[JsonSerializable(typeof(BalanceInfo))]
+[JsonSerializable(typeof(BalanceInfoValue))]
+[JsonSerializable(typeof(CheckTextToAIGenerationRequest))]
+[JsonSerializable(typeof(CheckTextToAIGenerationResponse))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(double))]
 [JsonSerializable(typeof(int))]
