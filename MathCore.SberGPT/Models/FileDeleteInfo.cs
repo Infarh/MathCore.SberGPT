@@ -3,8 +3,8 @@
 namespace MathCore.SberGPT.Models;
 
 /// <summary>Информация об удалении файла</summary>
-public readonly record struct FileDeleteInfo(
+internal readonly record struct FileDeleteInfo(
     [property: JsonPropertyName("id")] Guid Id
     , [property: JsonPropertyName("deleted")] bool Deleted
     , [property: JsonPropertyName("access_policy")] FileAccessPolicy? Access
-);
+    );

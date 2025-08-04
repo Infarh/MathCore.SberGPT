@@ -7,4 +7,5 @@ namespace MathCore.SberGPT.Models;
 /// <param name="Input">Ввод пользователя, для которого надо рассчитать количество токенов</param>
 internal readonly record struct GetTokensCountRequest(
     [property: JsonPropertyName("model")] string Model,
-    [property: JsonPropertyName("input")] string[] Input);
+    [property: JsonPropertyName("input")] IEnumerable<string> Input
+    );

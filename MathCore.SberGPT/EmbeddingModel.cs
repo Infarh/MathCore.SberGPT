@@ -1,4 +1,4 @@
-﻿namespace MathCore.SberGPT.Models;
+﻿namespace MathCore.SberGPT;
 
 /// <summary>Модели для векторизации текста</summary>
 public enum EmbeddingModel

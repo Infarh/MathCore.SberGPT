@@ -1,5 +1,7 @@
 ﻿using System.Text.Json.Serialization;
 
+using MathCore.SberGPT.Infrastructure;
+
 namespace MathCore.SberGPT.Models;
 
 /// <summary>Информация о файле</summary>
@@ -18,4 +20,4 @@ public readonly record struct FileDescription(
     , [property: JsonPropertyName("bytes")] int Length
     , [property: JsonPropertyName("purpose")] string Purpose
     , [property: JsonPropertyName("access_policy")] FileAccessPolicy AccessPolicy
-);
+    );

@@ -9,13 +9,13 @@ namespace MathCore.SberGPT.Models;
 /// <param name="Model">Тип модели</param>
 /// <param name="Usage">Данные об использовании модели</param>
 /// <param name="CallMethodName">Название вызываемого метода</param>
-public readonly record struct ModelResponse(
-    [property: JsonPropertyName("choices")] IReadOnlyList<ResponseChoice> Choices,
-    [property: JsonPropertyName("created")] int CreatedUnixTime,
-    [property: JsonPropertyName("model")] string Model,
-    [property: JsonPropertyName("usage")] ResponseUsage Usage,
-    [property: JsonPropertyName("object")] string? CallMethodName
-)
+public readonly record struct Response(
+    [property: JsonPropertyName("choices")] IReadOnlyList<ResponseChoice> Choices
+    , [property: JsonPropertyName("created")] int CreatedUnixTime
+    , [property: JsonPropertyName("model")] string Model
+    , [property: JsonPropertyName("usage")] ResponseUsage Usage
+    , [property: JsonPropertyName("object")] string? CallMethodName
+    )
 {
     ///// <summary>Время формирования ответа</summary>
     //[JsonIgnore]
@@ -26,8 +26,8 @@ public readonly record struct ModelResponse(
     public DateTimeOffset CreateTime => DateTimeOffset.FromUnixTimeMilliseconds(CreatedUnixTime);
 
     public IEnumerable<string> AssistMessages => Choices
-        .Where(c => c.Message.Role == "assistant")
-        .Select(c => c.Message.Content);
+        .Where(c => c.Msg.Role == "assistant")
+        .Select(c => c.Msg.Content);
 
     public string AssistMessage => AssistMessages.ToSeparatedStr(Environment.NewLine);
 
@@ -54,5 +54,5 @@ public readonly record struct ModelResponse(
         return $"assist: {assist_msg} tokens: {Usage.TotalTokens} ({Usage.PrecachedPromptTokens})";
     }
 
-    public static implicit operator string(ModelResponse response) => response.AssistMessage;
+    public static implicit operator string(Response response) => response.AssistMessage;
 }

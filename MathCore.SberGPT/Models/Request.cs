@@ -15,12 +15,12 @@ namespace MathCore.SberGPT.Models;
 /// <param name="FunctionCall">Вызов функции</param>
 /// <param name="Name">Название</param>
 public readonly record struct Request(
-    [property: JsonPropertyName("content"), JsonPropertyOrder(1)] string Content,
-    [property: JsonPropertyName("role"), JsonPropertyOrder(0)] RequestRole Role = RequestRole.user,
-    [property: JsonPropertyName("functions_state_id")] Guid? FunctionStateId = null,
-    [property: JsonPropertyName("function_call")] ResponseChoiceMsgFunc? FunctionCall = null,
-    [property: JsonPropertyName("name")] string? Name = null
-)
+    [property: JsonPropertyName("content"), JsonPropertyOrder(1)] string Content
+    , [property: JsonPropertyName("role"), JsonPropertyOrder(0)] RequestRole Role = RequestRole.user
+    , [property: JsonPropertyName("functions_state_id")] Guid? FunctionStateId = null
+    , [property: JsonPropertyName("function_call")] ResponseChoice.Message.FuncInfo? FunctionCall = null
+    , [property: JsonPropertyName("name")] string? Name = null
+    )
 {
     /// <summary>Создаёт запрос пользователя с текстовым содержимым</summary>
     /// <param name="Content">Текст сообщения пользователя</param>

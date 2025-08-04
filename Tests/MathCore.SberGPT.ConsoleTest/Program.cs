@@ -1,7 +1,8 @@
 ﻿// ReSharper disable HeuristicUnreachableCode
+
 using MathCore.SberGPT;
-using MathCore.SberGPT.ConsoleTest;
 using MathCore.SberGPT.ConsoleTest.HostedServices;
+using MathCore.SberGPT.ConsoleTest.Tests;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +10,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 //await TestSimple.RunAsync();
-await TestFiles.RunAsync();
+//await TestFiles.RunAsync();
+
+AreaTest.Run();
 
 Console.WriteLine("End.");
 Console.ReadLine();
@@ -25,6 +28,12 @@ cfg.AddUserSecrets(typeof(Program).Assembly);
 var log = builder.Logging;
 log.AddConsole();
 log.AddDebug();
+log.AddEventLog(e =>
+{
+    e.SourceName = "MathCore.SberGPT.ConsoleTest"; // Имя источника событий
+    e.LogName = "Application"; // Имя журнала событий
+    //e.Filter = (category, level) => level >= LogLevel.Warning; // Фильтруем по уровню
+});
 //log.AddFilter((n, l) => (n, l) switch
 //{
 //    ("MathCore.SberGPT.GptClient", >= LogLevel.Trace) => true,

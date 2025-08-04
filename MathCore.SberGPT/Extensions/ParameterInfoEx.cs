@@ -42,7 +42,7 @@ internal static class ParameterInfoEx
     {
         var gpt = parameter.GetCustomAttribute<GPTAttribute>();
         var param_name = gpt?.Name ??
-                         parameter.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ??
+                         //parameter.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ??
                          parameter.Name;
         return param_name.NotNull();
     }
@@ -52,10 +52,10 @@ internal static class ParameterInfoEx
     {
         var gpt = parameter.GetCustomAttribute<GPTAttribute>();
         var param_name = gpt?.Name ??
-                         parameter.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ??
+                         //parameter.GetCustomAttribute<FunctionParameterNameAttribute>()?.Name ??
                          parameter.Name;
         var param_desc = gpt?.Description ??
-                         parameter.GetCustomAttribute<FunctionDescriptionAttribute>()?.Description ??
+                         //parameter.GetCustomAttribute<FunctionDescriptionAttribute>()?.Description ??
                          parameter.GetCustomAttribute<DescriptionAttribute>()?.Description;
 
         return (param_name.NotNull(), param_desc);

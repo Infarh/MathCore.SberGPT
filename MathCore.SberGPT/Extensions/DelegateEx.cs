@@ -31,13 +31,13 @@ public static class DelegateEx
         var scheme = new JsonObject();
 
         var name = gpt?.Name ??
-                   method.GetCustomAttribute<FunctionNameAttribute>()?.Name ??
+                   //method.GetCustomAttribute<FunctionNameAttribute>()?.Name ??
                    method.GetCustomAttribute<DisplayNameAttribute>()?.DisplayName ??
                    method.Name;
         scheme["name"] = name;
 
         var desc = gpt?.Description ??
-                   method.GetCustomAttribute<FunctionDescriptionAttribute>()?.Description ??
+                   //method.GetCustomAttribute<FunctionDescriptionAttribute>()?.Description ??
                    method.GetCustomAttribute<DescriptionAttribute>()?.Description;
         scheme["description"] = desc;
 

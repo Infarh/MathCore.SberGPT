@@ -8,8 +8,8 @@ namespace MathCore.SberGPT.Models;
 /// <param name="PrecachedPromptTokens">Количество предварительно кэшированных токенов промпта</param>
 /// <param name="TotalTokens">Общее количество использованных токенов</param>
 public readonly record struct ResponseUsage(
-    [property: JsonPropertyName("prompt_tokens")] int PromptTokens,
-    [property: JsonPropertyName("completion_tokens")] int CompletionTokens,
-    [property: JsonPropertyName("precached_prompt_tokens")] int PrecachedPromptTokens,
-    [property: JsonPropertyName("total_tokens")] int TotalTokens
-);
+    [property: JsonPropertyName("prompt_tokens")] int PromptTokens
+    , [property: JsonPropertyName("completion_tokens")] int CompletionTokens
+    , [property: JsonPropertyName("precached_prompt_tokens")] int PrecachedPromptTokens
+    , [property: JsonPropertyName("total_tokens")] int TotalTokens
+    );

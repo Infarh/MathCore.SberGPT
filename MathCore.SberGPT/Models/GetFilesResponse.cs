@@ -2,4 +2,6 @@
 
 namespace MathCore.SberGPT.Models;
 
-internal record struct GetFilesResponse([property: JsonPropertyName("data")] FileDescription[] Files);
+internal record struct GetFilesResponse(
+    [property: JsonPropertyName("data")] FileDescription[] Files
+    );

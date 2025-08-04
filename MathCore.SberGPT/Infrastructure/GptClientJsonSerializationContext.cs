@@ -2,21 +2,21 @@
 
 using MathCore.SberGPT.Models;
 
-namespace MathCore.SberGPT;
+namespace MathCore.SberGPT.Infrastructure;
 
 /// <summary>Контекст сериализации для GptClient с поддержкой source generation</summary>
 [JsonSerializable(typeof(AccessToken))]
 [JsonSerializable(typeof(ModelRequest))]
 [JsonSerializable(typeof(Request))]
-[JsonSerializable(typeof(ModelResponse))]
-[JsonSerializable(typeof(StreamingResponseMsg))]
+[JsonSerializable(typeof(Response))]
+[JsonSerializable(typeof(StreamingResponse))]
 [JsonSerializable(typeof(EmbeddingRequest))]
 [JsonSerializable(typeof(EmbeddingResponse))]
 [JsonSerializable(typeof(ValidationFunctionResult))]
 [JsonSerializable(typeof(GetFilesResponse))]
 [JsonSerializable(typeof(FileDeleteInfo))]
 [JsonSerializable(typeof(BalanceInfo))]
-[JsonSerializable(typeof(BalanceInfoValue))]
+[JsonSerializable(typeof(BalanceInfo.Value))]
 [JsonSerializable(typeof(CheckTextToAIGenerationRequest))]
 [JsonSerializable(typeof(CheckTextToAIGenerationResponse))]
 [JsonSerializable(typeof(string))]

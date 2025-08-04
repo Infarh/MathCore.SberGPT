@@ -1,4 +1,4 @@
-﻿namespace MathCore.SberGPT.Models;
+﻿namespace MathCore.SberGPT;
 
 /// <summary>Режим доступа</summary>
 public enum FileAccessPolicy { Private, Public }

@@ -5,7 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Text.Unicode;
 
 using MathCore.SberGPT.Models;
@@ -157,7 +156,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
     /// <param name="ModelName">Название модели</param>
     /// <param name="Cancel">Токен отмены асинхронной операции</param>
     /// <returns>Результат</returns>
-    public async Task<ModelResponse> RequestAsync(
+    public async Task<Response> RequestAsync(
         string UserPrompt,
         string? SystemPrompt = null,
         IEnumerable<Request>? ChatHistory = null,
@@ -190,9 +189,9 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 
         var response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
-        var response_message = await response.AsJsonAsync<ModelResponse>(JsonOptions, Cancel).ConfigureAwait(false);
+        var response_message = await response.AsJsonAsync<Response>(JsonOptions, Cancel).ConfigureAwait(false);
 
-        while (response_message.Choices is [{ FinishReason: "function_call", Message: { FunctionCall: { Name: var func_name, Arguments: var args } function_call, FunctionsStateId: var call_id } }, ..])
+        while (response_message.Choices is [{ FinishReason: "function_call", Msg: { FunctionCall: { Name: var func_name, Arguments: var args } function_call, FunctionsStateId: var call_id } }, ..])
         {
             _Log.LogInformation("Модель запросила вызов функции {FunctionName}", func_name);
             var function = _Functions[func_name];
@@ -212,7 +211,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 
             response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
-            response_message = await response.AsJsonAsync<ModelResponse>(JsonOptions, Cancel).ConfigureAwait(false);
+            response_message = await response.AsJsonAsync<Response>(JsonOptions, Cancel).ConfigureAwait(false);
         }
 
         _Log.LogInformation("Успешно получен ответ от модели {ModelType}. Токенов в запросе: {PromptTokens}. Потрачено токенов: {CompletionTokens}. Оплачено токенов {PrecachedPromptTokens} Итого токенов: {TotalTokens}",
@@ -234,11 +233,11 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
     /// <param name="ChatHistory">История предыдущих сообщений в чате (опционально)</param>
     /// <param name="ModelName">Название используемой модели (по умолчанию "GigaChat-2")</param>
     /// <param name="Cancel">Токен отмены асинхронной операции</param>
-    /// <returns>Асинхронный поток сообщений <see cref="StreamingResponseMsg"/> от модели</returns>
+    /// <returns>Асинхронный поток сообщений <see cref="StreamingResponse"/> от модели</returns>
     /// <exception cref="ArgumentNullException">Возникает, если <paramref name="UserPrompt"/> равен null</exception>
     /// <exception cref="ArgumentException">Возникает, если <paramref name="UserPrompt"/> является пустой строкой</exception>
     /// <exception cref="HttpRequestException">Возникает при ошибках HTTP-запроса</exception>
-    public async IAsyncEnumerable<StreamingResponseMsg> RequestStreamingAsync(
+    public async IAsyncEnumerable<StreamingResponse> RequestStreamingAsync(
        string UserPrompt,
        string? SystemPrompt = null,
        IEnumerable<Request>? ChatHistory = null,
@@ -290,7 +289,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 
             var reader = new StreamReader(stream);
 
-            ResponseChoiceMsgFunc? function_call_value = null;
+            ResponseChoice.Message.FuncInfo? function_call_value = null;
             Guid? function_call_state_id = null;
 
 
@@ -306,7 +305,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
                     continue;
 
                 var data = line[6..].Replace("\n", Environment.NewLine);
-                var msg = JsonSerializer.Deserialize<StreamingResponseMsg>(data, JsonOptions);
+                var msg = JsonSerializer.Deserialize<StreamingResponse>(data, JsonOptions);
 
                 var is_msg = true;
                 if (msg.FunctionCall is { } call)
@@ -346,115 +345,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
     }
 
     /// <summary>Настройка процесса json-сериализации</summary>
-    internal static readonly JsonSerializerOptions JsonOptions = new(GptClientJsonSerializationContext.Default.Options) { Encoder = JavaScriptEncoder.Create(UnicodeRanges.Cyrillic, UnicodeRanges.BasicLatin), };
-
-    #endregion
-
-    #region Генерация изображения
-
-    private static readonly Regex __GuidRegex = GetGuidRegex();
-
-    [GeneratedRegex("[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")]
-    private static partial Regex GetGuidRegex();
-
-    public async Task<Guid> GenerateImageAsync(
-        IEnumerable<Request> Requests,
-        string Model = "GigaChat-2",
-        CancellationToken Cancel = default)
-    {
-        const string request_url = "chat/completions";
-
-        ModelRequest message = new(Requests.ToArray(), Model, FunctionCall: "auto");
-
-        var response = await Http.PostAsJsonAsync(request_url, message, JsonOptions, Cancel).ConfigureAwait(false);
-
-        var response_message = await response.AsJsonAsync<ModelResponse>(JsonOptions, Cancel).ConfigureAwait(false);
-
-        var content_str = response_message.Choices.First(c => c.Message.Role == "assistant").Message.Content;
-        var guid = Guid.Parse(__GuidRegex.Match(content_str).ValueSpan);
-
-        return guid;
-    }
-
-    private async ValueTask<Stream> GetImageDownloadStreamAsync(Guid id, CancellationToken Cancel)
-    {
-        var response = await Http.GetAsync($"files/{id}/content", Cancel).ConfigureAwait(false);
-        return await response.AsStream(Cancel).ConfigureAwait(false);
-    }
-
-    public async Task<byte[]> DownloadImageById(Guid id, CancellationToken Cancel = default)
-    {
-        await using var stream = await GetImageDownloadStreamAsync(id, Cancel);
-
-        var result = new MemoryStream(new byte[stream.Length]);
-        await stream.CopyToAsync(result, Cancel).ConfigureAwait(false);
-
-        return result.ToArray();
-    }
-
-    public async Task DownloadImageById(Guid id, Func<Stream, Task> ProcessStream, CancellationToken Cancel = default)
-    {
-        await using var stream = await GetImageDownloadStreamAsync(id, Cancel);
-        await ProcessStream(stream).ConfigureAwait(false);
-    }
-
-    public async Task DownloadImageById(Guid id, Func<Stream, CancellationToken, Task> ProcessStream, CancellationToken Cancel = default)
-    {
-        await using var stream = await GetImageDownloadStreamAsync(id, Cancel);
-        await ProcessStream(stream, Cancel).ConfigureAwait(false);
-    }
-
-    public async Task<byte[]> GenerateAndDownloadImageAsync(
-        IEnumerable<Request> Requests,
-        string Model = "GigaChat-2",
-        CancellationToken Cancel = default)
-    {
-        var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
-        var result = await DownloadImageById(guid, Cancel).ConfigureAwait(false);
-        return result;
-    }
-
-    public async Task GenerateAndDownloadImageAsync(
-        IEnumerable<Request> Requests,
-        Func<byte[], Task> ProcessData,
-        string Model = "GigaChat-2",
-        CancellationToken Cancel = default)
-    {
-        var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
-        var result = await DownloadImageById(guid, Cancel).ConfigureAwait(false);
-        await ProcessData(result).ConfigureAwait(false);
-    }
-
-    public async Task GenerateAndDownloadImageAsync(
-        IEnumerable<Request> Requests,
-        Func<byte[], CancellationToken, Task> ProcessData,
-        string Model = "GigaChat-2",
-        CancellationToken Cancel = default)
-    {
-        var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
-        var result = await DownloadImageById(guid, Cancel).ConfigureAwait(false);
-        await ProcessData(result, Cancel).ConfigureAwait(false);
-    }
-
-    public async Task GenerateAndDownloadImageAsync(
-        IEnumerable<Request> Requests,
-        Func<Stream, Task> ProcessStream,
-        string Model = "GigaChat-2",
-        CancellationToken Cancel = default)
-    {
-        var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
-        await DownloadImageById(guid, ProcessStream, Cancel).ConfigureAwait(false);
-    }
-
-    public async Task GenerateAndDownloadImageAsync(
-        IEnumerable<Request> Requests,
-        Func<Stream, CancellationToken, Task> ProcessStream,
-        string Model = "GigaChat-2",
-        CancellationToken Cancel = default)
-    {
-        var guid = await GenerateImageAsync(Requests, Model, Cancel).ConfigureAwait(false);
-        await DownloadImageById(guid, ProcessStream, Cancel).ConfigureAwait(false);
-    }
+    internal static readonly JsonSerializerOptions JsonOptions = new(Infrastructure.GptClientJsonSerializationContext.Default.Options) { Encoder = JavaScriptEncoder.Create(UnicodeRanges.Cyrillic, UnicodeRanges.BasicLatin), };
 
     #endregion
 
@@ -493,7 +384,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
     #region Баланс токенов
 
     /// <summary>Получить информацию о количестве токенов</summary>
-    public async Task<BalanceInfoValue[]> GetTokensBalanceAsync(CancellationToken Cancel = default)
+    public async Task<IReadOnlyList<(string Model, int TokensElapsed)>> GetTokensBalanceAsync(CancellationToken Cancel = default)
     {
         const string url = "balance";
 
@@ -504,7 +395,7 @@ public partial class GptClient(HttpClient Http, ILogger<GptClient>? Log)
 
             _Log.LogTrace("Оставшееся количество токенов {Balance}", balance);
 
-            return balance.Tokens;
+            return balance.Tokens.Select(token => (token.Model, token.TokensElapsed)).ToArray();
         }
         catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.Unauthorized)
         {

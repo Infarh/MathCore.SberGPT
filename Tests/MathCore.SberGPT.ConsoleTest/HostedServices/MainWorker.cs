@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using MathCore.SberGPT.Extensions;
+
+using Microsoft.Extensions.Hosting;
 
 namespace MathCore.SberGPT.ConsoleTest.HostedServices;
 

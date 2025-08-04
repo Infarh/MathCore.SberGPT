@@ -48,7 +48,7 @@ internal static class ListOfRequestsEx
         string InvokeResultJson,
         Guid CallId,
         string FunctionName,
-        ResponseChoiceMsgFunc FunctionCall)
+        ResponseChoice.Message.FuncInfo FunctionCall)
     {
         requests.Add(new(InvokeResultJson, RequestRole.assistant, FunctionStateId: CallId, FunctionCall: FunctionCall));
         requests.Add(new(InvokeResultJson, RequestRole.function, Name: FunctionName));

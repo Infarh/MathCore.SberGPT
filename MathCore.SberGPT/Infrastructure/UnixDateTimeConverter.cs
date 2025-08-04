@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace MathCore.SberGPT;
+namespace MathCore.SberGPT.Infrastructure;
 
 /// <summary>Конвертер для десериализации времени в формате Unix в структуру DateTime</summary>
 internal class UnixDateTimeConverter : JsonConverter<DateTime>

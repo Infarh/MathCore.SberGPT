@@ -7,4 +7,5 @@ namespace MathCore.SberGPT.Models;
 /// <param name="Characters">Количество символов</param>
 internal readonly record struct TokensCountResponse(
     [property: JsonPropertyName("tokens")] int Tokens,
-    [property: JsonPropertyName("characters")] int Characters);
+    [property: JsonPropertyName("characters")] int Characters
+    );

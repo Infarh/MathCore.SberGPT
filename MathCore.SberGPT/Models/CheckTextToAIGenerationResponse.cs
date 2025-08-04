@@ -4,14 +4,14 @@ namespace MathCore.SberGPT.Models;
 
 /// <summary>Ответ на проверку текста.</summary>
 public readonly record struct CheckTextToAIGenerationResponse(
-    [property: JsonPropertyName("category")] CheckTextToAIGenerationResponse.TextClass Test
+    [property: JsonPropertyName("category")] CheckTextToAIGenerationResponse.TextCategory Category
     , [property: JsonPropertyName("characters")] int TextLength
     , [property: JsonPropertyName("tokens")] int Tokens
     , [property: JsonPropertyName("ai_intervals")] int[][] Intervals
-)
+    )
 {
     /// <summary>Категория текста, определённая моделью детекции.</summary>
-    public enum TextClass
+    public enum TextCategory
     {
         /// <summary>Текст сгенерирован ИИ.</summary>
         AI,

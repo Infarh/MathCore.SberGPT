@@ -20,14 +20,14 @@ namespace MathCore.SberGPT.Models;
 /// <param name="MaxTokensCount">Максимальное количество токенов, которые будут использованы для создания ответов</param>
 /// <param name="RepetitionPenalty">Количество повторений слов. По умолчанию 1.0. При значении больше 1 модель будет стараться не повторять слова.</param>
 internal readonly record struct ModelRequest(
-    [property: JsonPropertyName("messages")] Request[] Requests,
-    [property: JsonPropertyName("model")] string Model = "GigaChat-2",
-    [property: JsonPropertyName("function_call")] string? FunctionCall = "auto",
-    [property: JsonPropertyName("functions")] IEnumerable<JsonNode>? FunctionSchemes = null,
-    [property: JsonPropertyName("temperature")] double? Temperature = null,
-    [property: JsonPropertyName("top_p")] double? TemperatureAlternative = null,
-    [property: JsonPropertyName("stream")] bool? Streaming = null,
-    [property: JsonPropertyName("max_tokens")] int? MaxTokensCount = null,
-    [property: JsonPropertyName("repetition_penalty")] double? RepetitionPenalty = null,
-    [property: JsonPropertyName("update_interval")] int? UpdateInterval = null
-);
+    [property: JsonPropertyName("messages")] Request[] Requests
+    , [property: JsonPropertyName("model")] string Model = "GigaChat-2"
+    , [property: JsonPropertyName("function_call")] string? FunctionCall = "auto"
+    , [property: JsonPropertyName("functions")] IEnumerable<JsonNode>? FunctionSchemes = null
+    , [property: JsonPropertyName("temperature")] double? Temperature = null
+    , [property: JsonPropertyName("top_p")] double? TemperatureAlternative = null
+    , [property: JsonPropertyName("stream")] bool? Streaming = null
+    , [property: JsonPropertyName("max_tokens")] int? MaxTokensCount = null
+    , [property: JsonPropertyName("repetition_penalty")] double? RepetitionPenalty = null
+    , [property: JsonPropertyName("update_interval")] int? UpdateInterval = null
+    );

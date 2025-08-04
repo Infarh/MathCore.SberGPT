@@ -1,6 +1,6 @@
 ﻿using MathCore.SberGPT.Models;
 
-namespace MathCore.SberGPT;
+namespace MathCore.SberGPT.Extensions;
 
 /// <summary>Методы-расширения для работы с потоковыми сообщениями ответа модели</summary>
 public static class StreamingResponseMessageEx
@@ -9,7 +9,7 @@ public static class StreamingResponseMessageEx
     /// <param name="responses">Асинхронная последовательность потоковых сообщений</param>
     /// <param name="writer">Писатель для вывода сообщений</param>
     /// <param name="Cancel">Токен отмены</param>
-    public static async Task PrintToAsync(this IAsyncEnumerable<StreamingResponseMsg> responses, TextWriter writer, CancellationToken Cancel = default)
+    public static async Task PrintToAsync(this IAsyncEnumerable<StreamingResponse> responses, TextWriter writer, CancellationToken Cancel = default)
     {
         await foreach (var response in responses.WithCancellation(Cancel).ConfigureAwait(false))
             await writer.WriteAsync(response.Message.AsMemory(), Cancel).ConfigureAwait(false);

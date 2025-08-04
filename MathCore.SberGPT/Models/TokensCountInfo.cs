@@ -19,12 +19,19 @@ public readonly record struct TokensCountInfo(IReadOnlyList<TokensCount> Counts)
     /// <summary>Объединённый текст всех входных строк</summary>
     [JsonIgnore] public string Input => Counts.Aggregate(new StringBuilder(), (s, c) => s.AppendLine(c.Input), s => s.Length == 0 ? string.Empty : s.ToString(0, s.Length - Environment.NewLine.Length));
 
-    /// <inheritdoc/>
-    IEnumerator<TokensCount> IEnumerable<TokensCount>.GetEnumerator() => Counts.GetEnumerator();
-    /// <inheritdoc/>
-    IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)Counts).GetEnumerator();
-    /// <inheritdoc/>
-    int IReadOnlyCollection<TokensCount>.Count => Counts.Count;
+    #region IReadOnlyList<TokensCount>
+
     /// <inheritdoc/>
     public TokensCount this[int index] => Counts[index];
+
+    /// <inheritdoc/>
+    int IReadOnlyCollection<TokensCount>.Count => Counts.Count;
+
+    /// <inheritdoc/>
+    IEnumerator<TokensCount> IEnumerable<TokensCount>.GetEnumerator() => Counts.GetEnumerator();
+
+    /// <inheritdoc/>
+    IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)Counts).GetEnumerator();
+
+    #endregion
 }

@@ -155,7 +155,7 @@ public partial class GptClient
     /// <param name="Id">Идентификатор файла</param>
     /// <param name="Cancel">Отмена операции</param>
     /// <returns>Информация об удалении файла</returns>
-    public async Task<FileDeleteInfo> DeleteFileAsync(Guid Id, CancellationToken Cancel = default)
+    public async Task<(Guid FileId, bool Deleted)> DeleteFileAsync(Guid Id, CancellationToken Cancel = default)
     {
         const string url = "files";
         var url_address = $"{url}/{Id}/delete";
@@ -177,7 +177,7 @@ public partial class GptClient
             else
                 _Log.LogInformation("Файл {Id} не удален", Id);
 
-            return file_info;
+            return (file_info.Id, file_info.Deleted);
         }
         catch (HttpRequestException e)
         {

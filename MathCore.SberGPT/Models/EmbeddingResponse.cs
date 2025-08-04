@@ -7,5 +7,5 @@ namespace MathCore.SberGPT.Models;
 /// <param name="Values">Массив векторных представлений входных текстов</param>
 public readonly record struct EmbeddingResponse(
     [property: JsonPropertyName("object")] string ListIdStr,
-    [property: JsonPropertyName("data")] EmbeddingResponseValue[] Values
-);
+    [property: JsonPropertyName("data")] IReadOnlyList<EmbeddingResponseValue> Values
+    );
