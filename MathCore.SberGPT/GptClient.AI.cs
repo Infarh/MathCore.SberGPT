@@ -15,7 +15,6 @@ public partial class GptClient : IChatClient, IEmbeddingGenerator<string, Embedd
 
     //public ChatClientMetadata Metadata { get; } = new("GigaChat", new Uri("https://developers.sber.ru/"));
 
-    /// <inheritdoc/>
     async Task<ChatResponse> IChatClient.GetResponseAsync(
         IEnumerable<ChatMessage> Messages,
         ChatOptions? options,
@@ -37,9 +36,21 @@ public partial class GptClient : IChatClient, IEmbeddingGenerator<string, Embedd
         ).ConfigureAwait(false);
 
         return ConvertToChatResponse(response, model_name);
+
+        static ChatResponse ConvertToChatResponse(Response response, string Model) =>
+            new([new(ChatRole.Assistant, response.AssistMessage)])
+            {
+                ModelId = Model,
+                CreatedAt = response.CreateTime,
+                Usage = new()
+                {
+                    InputTokenCount = response.Usage.PromptTokens,
+                    OutputTokenCount = response.Usage.CompletionTokens,
+                    TotalTokenCount = response.Usage.TotalTokens
+                }
+            };
     }
 
-    /// <inheritdoc/>
     async IAsyncEnumerable<ChatResponseUpdate> IChatClient.GetStreamingResponseAsync(
         IEnumerable<ChatMessage> Messages,
         ChatOptions? options,
@@ -63,15 +74,33 @@ public partial class GptClient : IChatClient, IEmbeddingGenerator<string, Embedd
             foreach (var choice in streaming_response.Choices)
                 yield return ConvertToStreamingChatResponse(choice, streaming_response, model_name);
 
+        yield break;
+
+        static ChatResponseUpdate ConvertToStreamingChatResponse(
+            StreamingResponse.Choice Choice,
+            StreamingResponse response,
+            string Model)
+            => new(new(Choice.Delta.Role), Choice.Delta.Content)
+            {
+                ModelId = Model,
+                CreatedAt = response.CreatedAt,
+            };
     }
+
+    /// <summary>Конвертирует список ChatMessage в последовательность Request</summary>
+    private static IEnumerable<Request> ConvertToRequestMessages(IList<ChatMessage> messages) =>
+        messages.Select(msg => msg.Role.Value switch
+        {
+            "system" => Request.System(msg.Text),
+            "user" => Request.User(msg.Text),
+            "assistant" => Request.Assistant(msg.Text),
+            "function" => Request.Function(msg.Text),
+            _ => Request.User(msg.Text)
+        });
 
     object? IChatClient.GetService(Type Service, object? Key) => Service.IsInstanceOfType(this) ? this : null;
 
-    /// <inheritdoc/>
-    void IDisposable.Dispose()
-    {
-        //GC.SuppressFinalize(this);
-    }
+    void IDisposable.Dispose() => GC.SuppressFinalize(this);
 
     #endregion
 
@@ -79,7 +108,6 @@ public partial class GptClient : IChatClient, IEmbeddingGenerator<string, Embedd
 
     //EmbeddingGeneratorMetadata IEmbeddingGenerator.Metadata { get; } = new("GigaChat-Embeddings");
 
-    /// <inheritdoc/>
     async Task<Embeddings> IEmbeddingGenerator<string, Embedding>.GenerateAsync(
         IEnumerable<string> Values,
         EmbeddingGenerationOptions? options,
@@ -99,49 +127,7 @@ public partial class GptClient : IChatClient, IEmbeddingGenerator<string, Embedd
         return new(embeddings) { Usage = new() { TotalTokenCount = usage_tokens } };
     }
 
-    /// <inheritdoc/>
     object? IEmbeddingGenerator.GetService(Type Service, object? Key) => Service.IsInstanceOfType(this) ? this : null;
-
-    #endregion
-
-    #region Helper Methods
-
-    /// <summary>Конвертирует список ChatMessage в последовательность Request</summary>
-    private static IEnumerable<Request> ConvertToRequestMessages(IList<ChatMessage> messages) =>
-        messages.Select(msg => msg.Role.Value switch
-        {
-            "system" => Request.System(msg.Text),
-            "user" => Request.User(msg.Text),
-            "assistant" => Request.Assistant(msg.Text),
-            "function" => Request.Function(msg.Text),
-            _ => Request.User(msg.Text)
-        });
-
-    /// <summary>Конвертирует Response в ChatResponse</summary>
-    private static ChatResponse ConvertToChatResponse(Response response, string Model) => new([
-        new ChatMessage(ChatRole.Assistant, response.AssistMessage)
-    ])
-    {
-        ModelId = Model,
-        CreatedAt = response.CreateTime,
-        Usage = new()
-        {
-            InputTokenCount = response.Usage.PromptTokens,
-            OutputTokenCount = response.Usage.CompletionTokens,
-            TotalTokenCount = response.Usage.TotalTokens
-        }
-    };
-
-    /// <summary>Конвертирует StreamingResponse в StreamingChatResponse</summary>
-    private static ChatResponseUpdate ConvertToStreamingChatResponse(
-        StreamingResponse.Choice Choice,
-        StreamingResponse response,
-        string Model)
-        => new(new(Choice.Delta.Role), Choice.Delta.Content)
-        {
-            ModelId = Model,
-            CreatedAt = response.CreatedAt,
-        };
 
     #endregion
 }
