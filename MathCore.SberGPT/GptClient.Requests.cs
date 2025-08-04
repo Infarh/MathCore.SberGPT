@@ -1,10 +1,24 @@
 ﻿using System.Net.Http.Json;
 using System.Text.Json;
 
+using MathCore.SberGPT.Models;
+
 namespace MathCore.SberGPT;
 
 public partial class GptClient
 {
+    /// <summary>Системный запрос</summary>
+    public string? SystemPrompt { get; set; }
+
+    /// <summary>История запросов и ответов в текущей сессии чата</summary>
+    private readonly List<Request> _ChatHistory = [];
+
+    /// <summary>Получить список всех запросов в истории чата в режиме только для чтения</summary>
+    public IReadOnlyList<Request> Requests => _ChatHistory.AsReadOnly();
+
+    /// <summary>Определяет, использовать ли историю чата при отправке запросов к модели</summary>
+    public bool UseChatHistory { get; set; } = true;
+
     /// <summary>Генерация запроса к API с включением заголовков идентификаторов сессии и запроса</summary>
     /// <param name="method">Метод запроса</param>
     /// <param name="url">Адрес</param>
