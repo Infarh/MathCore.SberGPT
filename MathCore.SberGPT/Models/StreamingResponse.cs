@@ -6,12 +6,12 @@ namespace MathCore.SberGPT.Models;
 
 /// <summary>Сообщение потокового ответа от модели</summary>
 /// <param name="Choices">Список фрагментов ответа модели</param>
-/// <param name="CreatedUnixTime">Время создания ответа в Unix timestamp</param>
+/// <param name="CreatedAt">Время создания ответа</param>
 /// <param name="Model">Название модели, сгенерировавшей ответ</param>
 /// <param name="CallMethodName">Название вызываемого метода API</param>
 public readonly record struct StreamingResponse(
     [property: JsonPropertyName("choices")] IReadOnlyList<StreamingResponse.Choice> Choices
-    , [property: JsonPropertyName("created")] int CreatedUnixTime
+    , [property: JsonPropertyName("created"), JsonConverter(typeof(UnixDateTimeConverter))] DateTime CreatedAt
     , [property: JsonPropertyName("model")] string Model
     , [property: JsonPropertyName("object")] string? CallMethodName
     )
