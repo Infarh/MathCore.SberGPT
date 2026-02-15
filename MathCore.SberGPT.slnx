@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/.Services/">
+    <File Path=".github/copilot-instructions.md" />
+    <File Path=".github/workflows/publish.yml" />
+    <File Path=".gitignore" />
+    <File Path="readme.md" />
+  </Folder>
+  <Folder Name="/.Services/workflows/">
+    <File Path=".github/workflows/publish.yml" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/MathCore.SberGPT.ConsoleTest/MathCore.SberGPT.ConsoleTest.csproj" />
+    <Project Path="Tests/MathCore.SberGPT.Tests/MathCore.SberGPT.Tests.csproj" />
+  </Folder>
+  <Project Path="MathCore.SberGPT/MathCore.SberGPT.csproj" />
+</Solution>
