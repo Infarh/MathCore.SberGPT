@@ -14,6 +14,11 @@ public partial class GptClient
     [GeneratedRegex("[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")]
     private static partial Regex GetGuidRegex();
 
+    /// <summary>Генерирует изображение на основе запросов</summary>
+    /// <param name="Requests">Запросы для генерации</param>
+    /// <param name="Model">Модель GigaChat</param>
+    /// <param name="Cancel">Токен отмены</param>
+    /// <returns>Идентификатор созданного изображения</returns>
     public async Task<Guid> GenerateImageAsync(
         IEnumerable<Request> Requests,
         string Model = "GigaChat-2",
@@ -39,6 +44,10 @@ public partial class GptClient
         return await response.AsStream(Cancel).ConfigureAwait(false);
     }
 
+    /// <summary>Скачивает изображение по идентификатору</summary>
+    /// <param name="id">Идентификатор изображения</param>
+    /// <param name="Cancel">Токен отмены</param>
+    /// <returns>Данные изображения</returns>
     public async Task<byte[]> DownloadImageById(Guid id, CancellationToken Cancel = default)
     {
         await using var stream = await GetImageDownloadStreamAsync(id, Cancel);
@@ -49,12 +58,20 @@ public partial class GptClient
         return result.ToArray();
     }
 
+    /// <summary>Скачивает изображение и обрабатывает его потоком данных</summary>
+    /// <param name="id">Идентификатор изображения</param>
+    /// <param name="ProcessStream">Функция обработки потока</param>
+    /// <param name="Cancel">Токен отмены</param>
     public async Task DownloadImageById(Guid id, Func<Stream, Task> ProcessStream, CancellationToken Cancel = default)
     {
         await using var stream = await GetImageDownloadStreamAsync(id, Cancel);
         await ProcessStream(stream).ConfigureAwait(false);
     }
 
+    /// <summary>Скачивает изображение и обрабатывает его потоком данных с поддержкой отмены</summary>
+    /// <param name="id">Идентификатор изображения</param>
+    /// <param name="ProcessStream">Функция обработки потока с токеном отмены</param>
+    /// <param name="Cancel">Токен отмены</param>
     public async Task DownloadImageById(Guid id, Func<Stream, CancellationToken, Task> ProcessStream, CancellationToken Cancel = default)
     {
         await using var stream = await GetImageDownloadStreamAsync(id, Cancel);

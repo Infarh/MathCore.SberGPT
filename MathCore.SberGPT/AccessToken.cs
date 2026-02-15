@@ -16,6 +16,11 @@ public readonly record struct AccessToken(string Token, DateTimeOffset ExpiredTi
     /// <summary>Оставшееся время</summary>
     [JsonIgnore] public TimeSpan DurationTime => ExpiredTime - DateTimeOffset.Now;
 
+    /// <summary>Загружает токен из файла с расшифровкой</summary>
+    /// <param name="FilePath">Путь к файлу</param>
+    /// <param name="StoreKey">Ключ для расшифровки</param>
+    /// <param name="Cancel">Токен отмены</param>
+    /// <returns>Загруженный токен или значение по умолчанию</returns>
     public static async Task<AccessToken> LoadFromFileAsync(string FilePath, string? StoreKey, CancellationToken Cancel = default)
     {
         if (StoreKey is not { Length: > 0 }) return default;
@@ -52,6 +57,10 @@ public readonly record struct AccessToken(string Token, DateTimeOffset ExpiredTi
         }
     }
 
+    /// <summary>Сохраняет токен в файл с шифрованием</summary>
+    /// <param name="FilePath">Путь к файлу</param>
+    /// <param name="StoreKey">Ключ для шифрования</param>
+    /// <param name="Cancel">Токен отмены</param>
     public async Task SaveToFileAsync(string FilePath, string? StoreKey, CancellationToken Cancel = default)
     {
         if (StoreKey is not { Length: > 0 }) return;
