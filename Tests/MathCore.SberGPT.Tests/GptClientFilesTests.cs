@@ -23,7 +23,7 @@ public class GptClientFilesTests
     [TestMethod]
     public async Task TestFileUpload()
     {
-        const string file_path = "path/to/test/file.txt";
+        //const string file_path = "path/to/test/file.txt";
         using var stream = new MemoryStream("Hello World!"u8.ToArray());
 
         var request_str = default(string);
@@ -95,29 +95,29 @@ public class GptClientFilesTests
             }
         };
 
-        const string expected_response_str =
-            """
-            POST /api/v1/files HTTP/1.1
-            Host: gigachat.devices.sberbank.ru
-            User-Agent: MathCore.SberGPT/1.0
-            Accept: */*
-            Authorization: Bearer test_token
-            Content-Length: 323
-            
-            
-            Content-Type: multipart/form-data; boundary=------------------------dnJ8r4YHk7GTEbk4rVrsPb
-             
-            --------------------------dnJ8r4YHk7GTEbk4rVrsPb
-            Content-Disposition: form-data; name="file"; filename="TestFile.txt"
-            Content-Type: text/plain
-             
-            Hello World!
-            --------------------------dnJ8r4YHk7GTEbk4rVrsPb
-            Content-Disposition: form-data; name="purpose"
-             
-            general
-            --------------------------dnJ8r4YHk7GTEbk4rVrsPb--
-            """;
+        //const string expected_response_str =
+        //    """
+        //    POST /api/v1/files HTTP/1.1
+        //    Host: gigachat.devices.sberbank.ru
+        //    User-Agent: MathCore.SberGPT/1.0
+        //    Accept: */*
+        //    Authorization: Bearer test_token
+        //    Content-Length: 323
+
+
+        //    Content-Type: multipart/form-data; boundary=------------------------dnJ8r4YHk7GTEbk4rVrsPb
+
+        //    --------------------------dnJ8r4YHk7GTEbk4rVrsPb
+        //    Content-Disposition: form-data; name="file"; filename="TestFile.txt"
+        //    Content-Type: text/plain
+
+        //    Hello World!
+        //    --------------------------dnJ8r4YHk7GTEbk4rVrsPb
+        //    Content-Disposition: form-data; name="purpose"
+
+        //    general
+        //    --------------------------dnJ8r4YHk7GTEbk4rVrsPb--
+        //    """;
 
         using var response = await http.SendAsync(request);
         var response_body = await response.Content.ReadAsStringAsync();
