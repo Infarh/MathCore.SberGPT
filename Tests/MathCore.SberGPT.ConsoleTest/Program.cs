@@ -1,6 +1,6 @@
 ﻿// ReSharper disable HeuristicUnreachableCode
+
 using MathCore.SberGPT;
-using MathCore.SberGPT.ConsoleTest;
 using MathCore.SberGPT.ConsoleTest.HostedServices;
 
 using Microsoft.Extensions.Configuration;
@@ -9,12 +9,14 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 //await TestSimple.RunAsync();
-await TestFiles.RunAsync();
+//await TestFiles.RunAsync();
 
-Console.WriteLine("End.");
-Console.ReadLine();
-
-return;
+//AreaTest.Run();
+//var day = DayOfWeekTest.GetDayOfWeek(DayOfWeek.Thursday, 4, 8, 2025);
+//var name = CultureInfo.CurrentCulture.DateTimeFormat.GetDayName(day);
+//Console.WriteLine("End.");
+//Console.ReadLine();
+//return;
 
 var builder = Host.CreateApplicationBuilder();
 
@@ -25,6 +27,12 @@ cfg.AddUserSecrets(typeof(Program).Assembly);
 var log = builder.Logging;
 log.AddConsole();
 log.AddDebug();
+//log.AddEventLog(e =>
+//{
+//    e.SourceName = "MathCore.SberGPT.ConsoleTest"; // Имя источника событий
+//    e.LogName = "Application"; // Имя журнала событий
+//    //e.Filter = (category, level) => level >= LogLevel.Warning; // Фильтруем по уровню
+//});
 //log.AddFilter((n, l) => (n, l) switch
 //{
 //    ("MathCore.SberGPT.GptClient", >= LogLevel.Trace) => true,
@@ -37,7 +45,8 @@ var srv = builder.Services;
 srv.AddSberGPT();
 
 //srv.AddHostedService<MainWorker>();
-srv.AddHostedService<FilesWorker>();
+//srv.AddHostedService<FilesWorker>();
+srv.AddHostedService<VectorizerWorker>();
 
 var app = builder.Build();
 

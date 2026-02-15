@@ -39,7 +39,7 @@ public readonly record struct AccessToken(string Token, DateTimeOffset ExpiredTi
 
             var token = await JsonSerializer.DeserializeAsync<AccessToken>(
                     crypto_stream,
-                    GptClientJsonSerializationContext.Default.Options,
+                    Infrastructure.GptClientJsonSerializationContext.Default.Options,
                     Cancel)
                 .ConfigureAwait(false);
 
@@ -67,7 +67,7 @@ public readonly record struct AccessToken(string Token, DateTimeOffset ExpiredTi
         try
         {
             await using var crypto_stream = new CryptoStream(token_store_file.OpenWrite(), aes.CreateEncryptor(), CryptoStreamMode.Write);
-            await JsonSerializer.SerializeAsync(crypto_stream, this, GptClientJsonSerializationContext.Default.Options, Cancel).ConfigureAwait(false);
+            await JsonSerializer.SerializeAsync(crypto_stream, this, Infrastructure.GptClientJsonSerializationContext.Default.Options, Cancel).ConfigureAwait(false);
         }
         catch (Exception)
         {

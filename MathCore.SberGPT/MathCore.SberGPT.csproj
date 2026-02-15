@@ -1,16 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup>
-    <Version>0.0.1</Version>
+    <Version>0.0.2</Version>
     <PackageReleaseNotes>
-      Отладка базовой логики клиента
+      Миграция на .NET10
     </PackageReleaseNotes>
   </PropertyGroup>
 
@@ -23,8 +23,8 @@
     <Authors>Shmachilin P.A.</Authors>
     <PackageProjectUrl>github.com/Infarh/MathCore.SberGPT</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Infarh/MathCore.SberGPT.git</RepositoryUrl>
-    <Description>Клиент для модели GigaChat</Description>
-    <PackageTags>AI;LLM;Assistant;Sber;Sberbank;ChatGPT</PackageTags>
+    <Description>Клиент для LLM GigaChat</Description>
+    <PackageTags>AI;LLM;Assistant;Sber;Sberbank;ChatGPT;GigChat</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -39,7 +39,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.5" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>

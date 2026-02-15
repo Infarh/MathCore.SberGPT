@@ -1,27 +1,25 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>preview</LangVersion>
     <UserSecretsId>6a1ec9aa-33fd-4a19-91bd-508120d8148c</UserSecretsId>
   </PropertyGroup>
   
-  
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <NoWarn>
       1701;1702;
-      0162
+      0162;CA1416
     </NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MathCore" Version="0.0.93.1" />
+    <PackageReference Include="MathCore" Version="0.1.0" />
     <PackageReference Include="MathCore.OpenXML" Version="0.0.8.1" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
-    <PackageReference Include="RestSharp" Version="112.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
+    <PackageReference Include="RestSharp" Version="113.1.0" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,7 +1,6 @@
 ﻿using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
+
+using MathCore.SberGPT.Models;
 
 using Microsoft.Extensions.Logging;
 
@@ -9,44 +8,6 @@ namespace MathCore.SberGPT;
 
 public partial class GptClient
 {
-    /// <summary>Информация о файле</summary>
-    /// <param name="Id">Идентификатор</param>
-    /// <param name="Name">Имя файла</param>
-    /// <param name="CreatedAt">Время создания файла в формате</param>
-    /// <param name="Type">Тип файла</param>
-    /// <param name="Length">Размер файла в байтах</param>
-    /// <param name="Purpose">Назначение (general)</param>
-    /// <param name="AccessPolicy">Доступность файла (public|private)</param>
-    public readonly record struct FileDescription(
-        [property: JsonPropertyName("id")] Guid Id
-        , [property: JsonPropertyName("filename")] string Name
-        , [property: JsonPropertyName("created_at"), JsonConverter(typeof(UnixDateTimeConverter))] DateTime CreatedAt
-        , [property: JsonPropertyName("object")] string Type
-        , [property: JsonPropertyName("bytes")] int Length
-        , [property: JsonPropertyName("purpose")] string Purpose
-        , [property: JsonPropertyName("access_policy")] AccessPolicy AccessPolicy
-    );
-
-    /// <summary>Информация о загружаемом файле</summary>
-    public readonly record struct FileUploadInfo(
-        [property: JsonPropertyName("file")] string FileName,
-        [property: JsonPropertyName("purpose")] string Purpose
-    );
-
-    /// <summary>Информация об удалении файла</summary>
-    public readonly record struct FileDeleteInfo(
-        [property: JsonPropertyName("id")] Guid Id
-        , [property: JsonPropertyName("deleted")] bool Deleted
-        , [property: JsonPropertyName("access_policy")] AccessPolicy? Access
-    );
-
-    /// <summary>Режим доступа</summary>
-    public enum AccessPolicy { Private, Public }
-
-    internal record struct GetFilesResponse(
-        [property: JsonPropertyName("data")] FileDescription[] Files
-        );
-
     /// <summary>Получить список доступных файлов</summary>
     /// <param name="Cancel">Отмена операции</param>
     /// <returns>Список файлов</returns>
@@ -59,11 +20,7 @@ public partial class GptClient
 
         try
         {
-            var result = await response
-               .EnsureSuccessStatusCode()
-               .Content
-               .ReadFromJsonAsync<GetFilesResponse>(__DefaultOptions, Cancel)
-               .ConfigureAwait(false);
+            var result = await response.AsJsonAsync<GetFilesResponse>(JsonOptions, Cancel).ConfigureAwait(false);
 
             if (result is not { Files: { Length: var files_count } files })
                 throw new InvalidOperationException("Не удалось получить список файлов");
@@ -101,38 +58,15 @@ public partial class GptClient
         _Log.LogInformation("Загрузка файла {FileName} в хранилище...", FileName);
 
         var request = new MultipartFormDataContent()
-        {
-            new StreamContent(FileStream)
-            {
-                Headers =
-                {
-                    ContentType = new("text/plain"),
-                    ContentDisposition = new("form-data") { Name = "\"file\"", FileName = $"\"{FileName}\"" }
-                }
-            },
-            new StringContent(Purpose)
-            {
-                Headers =
-                {
-                    ContentType = null,
-                    ContentDisposition = new("form-data") { Name = "\"purpose\"" }
-                }
-            }
-        };
-
-        var content_type_parameter = request.Headers.ContentType!.Parameters.First();
-        var old_boundary = content_type_parameter.Value!;
-        content_type_parameter.Value = old_boundary.Trim('"');
+            .WithFile(FileName, FileStream)
+            .WithString(Name: "purpose", Str: Purpose)
+            .CheckBoundary();
 
         var response = await Http.PostAsync(url, request, Cancel).ConfigureAwait(false);
 
         try
         {
-            var file_info = await response
-                .EnsureSuccessStatusCode()
-                .Content
-                .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
-                .ConfigureAwait(false);
+            var file_info = await response.AsJsonAsync<FileDescription>(JsonOptions, Cancel).ConfigureAwait(false);
 
             if (file_info is not { Name: { Length: > 0 } })
                 throw new InvalidOperationException("Не удалось загрузить файл");
@@ -166,13 +100,9 @@ public partial class GptClient
 
         var response = await Http.GetAsync(url_address, Cancel).ConfigureAwait(false);
 
-        var file_info = await response
-            .EnsureSuccessStatusCode()
-            .Content
-            .ReadFromJsonAsync<FileDescription>(__DefaultOptions, Cancel)
-            .ConfigureAwait(false);
+        var file_info = await response.AsJsonAsync<FileDescription>(JsonOptions, Cancel).ConfigureAwait(false);
 
-        if (file_info is not { Name: { Length: > 0 } })
+        if (file_info is not { Name.Length: > 0 })
             throw new InvalidOperationException("Не удалось получить информацию о файле");
 
         _Log.LogInformation("Получена информация о файле {Id}", Id);
@@ -225,7 +155,7 @@ public partial class GptClient
     /// <param name="Id">Идентификатор файла</param>
     /// <param name="Cancel">Отмена операции</param>
     /// <returns>Информация об удалении файла</returns>
-    public async Task<FileDeleteInfo> DeleteFileAsync(Guid Id, CancellationToken Cancel = default)
+    public async Task<(Guid FileId, bool Deleted)> DeleteFileAsync(Guid Id, CancellationToken Cancel = default)
     {
         const string url = "files";
         var url_address = $"{url}/{Id}/delete";
@@ -233,19 +163,13 @@ public partial class GptClient
         _Log.LogInformation("Удаление файла {Id}", Id);
 
         var request = new HttpRequestMessage(HttpMethod.Post, url_address)
-        {
-            Headers = { Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json") } }
-        };
+            .WithAcceptApplicationJson();
 
         var response = await Http.SendAsync(request, Cancel).ConfigureAwait(false);
 
         try
         {
-            var file_info = await response
-                .EnsureSuccessStatusCode()
-                .Content
-                .ReadFromJsonAsync<FileDeleteInfo>(__DefaultOptions, Cancel)
-                .ConfigureAwait(false);
+            var file_info = await response.AsJsonAsync<FileDeleteInfo>(JsonOptions, Cancel).ConfigureAwait(false);
 
             // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
             if (file_info is { Deleted: true })
@@ -253,7 +177,7 @@ public partial class GptClient
             else
                 _Log.LogInformation("Файл {Id} не удален", Id);
 
-            return file_info;
+            return (file_info.Id, file_info.Deleted);
         }
         catch (HttpRequestException e)
         {

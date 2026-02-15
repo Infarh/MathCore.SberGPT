@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 
-using static MathCore.SberGPT.GptClient.ModelResponse.ChoiceValue.MessageValue;
+using MathCore.SberGPT.Models;
 
 namespace MathCore.SberGPT.Infrastructure.Extensions;
 
@@ -10,28 +10,28 @@ internal static class ListOfRequestsEx
     /// <summary>Добавляет сообщение ассистента в список запросов</summary>
     /// <param name="requests">Список запросов</param>
     /// <param name="AssistMessage">Текст сообщения ассистента</param>
-    public static void AddAssistant(this List<GptClient.Request> requests, string AssistMessage) => requests.Add(GptClient.Request.Assistant(AssistMessage));
+    public static void AddAssistant(this List<Request> requests, string AssistMessage) => requests.Add(Request.Assistant(AssistMessage));
 
     /// <summary>Добавляет сообщение пользователя в список запросов</summary>
     /// <param name="requests">Список запросов</param>
     /// <param name="UserPrompt">Текст сообщения пользователя</param>
-    public static void AddUser(this List<GptClient.Request> requests, string UserPrompt) => requests.Add(GptClient.Request.User(UserPrompt));
+    public static void AddUser(this List<Request> requests, string UserPrompt) => requests.Add(Request.User(UserPrompt));
 
     /// <summary>Добавляет системное сообщение в список запросов, если оно не пустое</summary>
     /// <param name="requests">Список запросов</param>
     /// <param name="SystemPrompt">Текст системного сообщения</param>
-    public static void AddSystem(this List<GptClient.Request> requests, string? SystemPrompt)
+    public static void AddSystem(this List<Request> requests, string? SystemPrompt)
     {
         if (string.IsNullOrWhiteSpace(SystemPrompt))
             return;
-        requests.Add(GptClient.Request.System(SystemPrompt));
+        requests.Add(Request.System(SystemPrompt));
     }
 
     /// <summary>Добавляет историю сообщений в список запросов</summary>
     /// <param name="requests">Список запросов</param>
     /// <param name="History">История сообщений</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void AddHistory(this List<GptClient.Request> requests, IEnumerable<GptClient.Request>? History)
+    public static void AddHistory(this List<Request> requests, IEnumerable<Request>? History)
     {
         if (History is null) return;
         requests.AddRange(History);
@@ -44,11 +44,11 @@ internal static class ListOfRequestsEx
     /// <param name="FunctionName">Имя функции</param>
     /// <param name="FunctionCall">Параметры вызова функции</param>
     public static void AddFunctionCall(
-        this List<GptClient.Request> requests,
+        this List<Request> requests,
         string InvokeResultJson,
         Guid CallId,
         string FunctionName,
-        FunctionCallValue FunctionCall)
+        ResponseChoice.Message.FuncInfo FunctionCall)
     {
         requests.Add(new(InvokeResultJson, RequestRole.assistant, FunctionStateId: CallId, FunctionCall: FunctionCall));
         requests.Add(new(InvokeResultJson, RequestRole.function, Name: FunctionName));
