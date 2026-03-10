@@ -18,7 +18,7 @@
   <ItemGroup>
     <PackageReference Include="MathCore" Version="0.1.0" />
     <PackageReference Include="MathCore.OpenXML" Version="0.0.8.1" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.4" />
     <PackageReference Include="RestSharp" Version="113.1.0" />
   </ItemGroup>
 
